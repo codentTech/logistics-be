@@ -15,7 +15,7 @@ const redisPlugin: FastifyPluginAsync = async (fastify) => {
     port: redisConfig.port,
     password: redisConfig.password,
     // Connection settings
-    connectTimeout: 10000, // 10 seconds
+    connectTimeout: 15000, // 15 seconds (increased for Windows compatibility)
     commandTimeout: 5000, // 5 seconds
     retryStrategy: (times) => {
       const delay = Math.min(times * 50, 2000);
@@ -31,6 +31,7 @@ const redisPlugin: FastifyPluginAsync = async (fastify) => {
     enableOfflineQueue: false, // Don't queue commands when offline
     // Performance settings
     keepAlive: 30000, // 30 seconds
+    // Windows compatibility: Use IPv4 (better Windows compatibility)
     family: 4, // Use IPv4
     // Reconnection settings
     reconnectOnError: (err) => {
@@ -42,6 +43,8 @@ const redisPlugin: FastifyPluginAsync = async (fastify) => {
     },
     // Connection pool settings
     enableReadyCheck: true,
+    // Windows: Disable auto-resubscribe to prevent connection issues
+    enableAutoPipelining: false,
   });
 
   redis.on('error', (err) => {
@@ -69,6 +72,8 @@ const redisPlugin: FastifyPluginAsync = async (fastify) => {
     fastify.log.warn({ err: error }, '⚠️  Redis connection failed - continuing without Redis');
     fastify.log.warn('   Some features (idempotency, caching, real-time) may not work');
     fastify.log.warn('   Start Redis with: docker-compose up -d redis');
+    fastify.log.warn('   Or install Redis on Windows: https://github.com/microsoftarchive/redis/releases');
+    fastify.log.warn('   Or use WSL2: wsl --install and then install Redis in WSL');
   }
 
   // Attach Redis to fastify instance (even if not connected)

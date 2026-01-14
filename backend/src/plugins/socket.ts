@@ -30,6 +30,8 @@ const socketPlugin: FastifyPluginAsync = async (fastify) => {
       port: redisConfig.port,
       password: redisConfig.password,
       enableOfflineQueue: true, // Allow queuing commands when offline
+      connectTimeout: 15000, // 15 seconds (Windows compatibility)
+      family: 4, // Use IPv4 (Windows compatibility)
       retryStrategy: (times) => {
         if (times > 10) {
           return null; // Stop retrying after 10 attempts
