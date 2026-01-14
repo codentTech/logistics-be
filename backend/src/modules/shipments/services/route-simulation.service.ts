@@ -261,6 +261,7 @@ export class RouteSimulationService {
 
       // Store in memory and Redis
       const simulationKey = `simulation:${tenantId}:${driverId}`;
+      const routeKey = `route:${tenantId}:${driverId}`;
       this.activeSimulations.set(simulationKey, simulationState);
       
       await this.redis.setex(
@@ -274,6 +275,20 @@ export class RouteSimulationService {
           deliveryPoint,
           currentStep: 0,
           totalSteps: routePoints.length - 1,
+        })
+      );
+
+      // Store route points separately for API access
+      await this.redis.setex(
+        routeKey,
+        3600, // 1 hour TTL
+        JSON.stringify({
+          shipmentId,
+          driverId,
+          tenantId,
+          pickupPoint,
+          deliveryPoint,
+          routePoints,
         })
       );
 
@@ -419,6 +434,10 @@ export class RouteSimulationService {
 
     // Remove from Redis
     await this.redis.del(simulationKey);
+    
+    // Also remove route data
+    const routeKey = `route:${tenantId}:${driverId}`;
+    await this.redis.del(routeKey);
   }
 
   /**
@@ -449,6 +468,59 @@ export class RouteSimulationService {
   hasActiveSimulation(driverId: string, tenantId: string): boolean {
     const simulationKey = `simulation:${tenantId}:${driverId}`;
     return this.activeSimulations.has(simulationKey);
+  }
+
+  /**
+   * Get route data for a driver (for map visualization)
+   */
+  async getRouteData(driverId: string, tenantId: string): Promise<{
+    shipmentId: string;
+    pickupPoint: RoutePoint;
+    deliveryPoint: RoutePoint;
+    routePoints: RoutePoint[];
+  } | null> {
+    const routeKey = `route:${tenantId}:${driverId}`;
+    const routeData = await this.redis.get(routeKey);
+    
+    if (!routeData) {
+      return null;
+    }
+
+    return JSON.parse(routeData);
+  }
+
+  /**
+   * Get route data by shipment ID
+   */
+  async getRouteDataByShipment(shipmentId: string, tenantId: string): Promise<{
+    shipmentId: string;
+    driverId: string;
+    pickupPoint: RoutePoint;
+    deliveryPoint: RoutePoint;
+    routePoints: RoutePoint[];
+  } | null> {
+    // Search through active simulations
+    for (const [key, simulation] of this.activeSimulations.entries()) {
+      if (simulation.shipmentId === shipmentId && simulation.tenantId === tenantId) {
+        return await this.getRouteData(simulation.driverId, tenantId);
+      }
+    }
+
+    // If not in memory, try to find in Redis by searching all route keys
+    const pattern = `route:${tenantId}:*`;
+    const keys = await this.redis.keys(pattern);
+    
+    for (const key of keys) {
+      const routeData = await this.redis.get(key);
+      if (routeData) {
+        const parsed = JSON.parse(routeData);
+        if (parsed.shipmentId === shipmentId) {
+          return parsed;
+        }
+      }
+    }
+
+    return null;
   }
 }
 

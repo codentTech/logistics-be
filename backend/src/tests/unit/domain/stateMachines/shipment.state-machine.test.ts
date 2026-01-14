@@ -6,8 +6,8 @@ describe('ShipmentStateMachine', () => {
   describe('canTransition', () => {
     it('should return true for valid transitions', () => {
       expect(ShipmentStateMachine.canTransition(ShipmentStatus.CREATED, ShipmentStatus.ASSIGNED)).toBe(true);
-      expect(ShipmentStateMachine.canTransition(ShipmentStatus.ASSIGNED, ShipmentStatus.PICKED_UP)).toBe(true);
-      expect(ShipmentStateMachine.canTransition(ShipmentStatus.PICKED_UP, ShipmentStatus.IN_TRANSIT)).toBe(true);
+      expect(ShipmentStateMachine.canTransition(ShipmentStatus.ASSIGNED, ShipmentStatus.IN_TRANSIT)).toBe(true);
+      expect(ShipmentStateMachine.canTransition(ShipmentStatus.IN_TRANSIT, ShipmentStatus.IN_TRANSIT)).toBe(true);
       expect(ShipmentStateMachine.canTransition(ShipmentStatus.IN_TRANSIT, ShipmentStatus.DELIVERED)).toBe(true);
     });
 
@@ -48,8 +48,8 @@ describe('ShipmentStateMachine', () => {
   describe('getValidNextStates', () => {
     it('should return correct next states for each status', () => {
       expect(ShipmentStateMachine.getValidNextStates(ShipmentStatus.CREATED)).toEqual([ShipmentStatus.ASSIGNED]);
-      expect(ShipmentStateMachine.getValidNextStates(ShipmentStatus.ASSIGNED)).toEqual([ShipmentStatus.PICKED_UP]);
-      expect(ShipmentStateMachine.getValidNextStates(ShipmentStatus.PICKED_UP)).toEqual([ShipmentStatus.IN_TRANSIT]);
+      expect(ShipmentStateMachine.getValidNextStates(ShipmentStatus.ASSIGNED)).toEqual([ShipmentStatus.IN_TRANSIT]);
+      expect(ShipmentStateMachine.getValidNextStates(ShipmentStatus.IN_TRANSIT)).toEqual([ShipmentStatus.IN_TRANSIT]);
       expect(ShipmentStateMachine.getValidNextStates(ShipmentStatus.IN_TRANSIT)).toEqual([ShipmentStatus.DELIVERED]);
       expect(ShipmentStateMachine.getValidNextStates(ShipmentStatus.DELIVERED)).toEqual([]);
     });
@@ -63,7 +63,7 @@ describe('ShipmentStateMachine', () => {
     it('should return false for non-terminal states', () => {
       expect(ShipmentStateMachine.isTerminalState(ShipmentStatus.CREATED)).toBe(false);
       expect(ShipmentStateMachine.isTerminalState(ShipmentStatus.ASSIGNED)).toBe(false);
-      expect(ShipmentStateMachine.isTerminalState(ShipmentStatus.PICKED_UP)).toBe(false);
+      expect(ShipmentStateMachine.isTerminalState(ShipmentStatus.IN_TRANSIT)).toBe(false);
       expect(ShipmentStateMachine.isTerminalState(ShipmentStatus.IN_TRANSIT)).toBe(false);
     });
   });

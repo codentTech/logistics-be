@@ -12,6 +12,7 @@ Production-grade reference implementation demonstrating real-time logistics back
 - [State Machine](STATE_MACHINE.md) - Shipment state transitions
 - [MQTT Setup](MQTT_SETUP.md) - MQTT configuration
 - [GraphQL Auth](GRAPHQL_AUTH.md) - GraphQL authentication
+- [Route Simulation](../ROUTE_SIMULATION.md) - Automatic driver movement simulation
 
 ## Quick Start
 
@@ -144,6 +145,13 @@ Body:
 ```
 
 Shipment status transitions to `ASSIGNED`.
+
+**🚗 Route Simulation Starts Automatically:**
+- When a driver is assigned, the system automatically starts simulating driver movement
+- Driver moves from pickup address to delivery address following actual roads (OSRM)
+- Location updates every 3 seconds
+- Simulation continues until driver reaches delivery location
+- See [Route Simulation Guide](ROUTE_SIMULATION.md) for details
 
 ### 4. Update Shipment Status
 
@@ -395,6 +403,9 @@ src/
 - ✅ GraphQL for complex reads (CQRS)
 - ✅ Swagger/OpenAPI documentation
 - ✅ Postman collection
+- ✅ **Route Simulation** - Automatic driver movement simulation from pickup to delivery
+- ✅ **OSRM Routing** - Real road-based routes (not straight lines)
+- ✅ **Modular Architecture** - Separated routes, schemas, controllers, services
 
 ## Development
 

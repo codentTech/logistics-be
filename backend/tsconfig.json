@@ -18,6 +18,7 @@
     "emitDecoratorMetadata": true,
     "strictPropertyInitialization": false,
     "baseUrl": "./src",
+    "composite": true,
     "paths": {
       "@/*": ["./*"],
       "@modules/*": ["./modules/*"],

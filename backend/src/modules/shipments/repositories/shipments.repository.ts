@@ -45,5 +45,13 @@ export class ShipmentRepository {
       order: { createdAt: 'DESC' },
     });
   }
+
+  async findByDriver(tenantId: string, driverId: string): Promise<Shipment[]> {
+    return this.shipmentRepository.find({
+      where: { tenantId, driverId },
+      relations: ['driver'],
+      order: { createdAt: 'DESC' },
+    });
+  }
 }
 

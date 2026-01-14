@@ -8,30 +8,56 @@ export const loginSchema: FastifySchema = {
   tags: ['auth'],
   body: {
     type: 'object',
-    required: ['email', 'password', 'tenantId'],
+    required: ['email', 'password'],
     properties: {
       email: { type: 'string', format: 'email' },
       password: { type: 'string' },
-      tenantId: { type: 'string', format: 'uuid' },
+      tenantId: { type: 'string', format: 'uuid' }, // Optional - only required if multiple tenants
     },
   },
   response: {
     200: {
-      description: 'Successful login',
+      description: 'Successful login or tenant selection required',
       type: 'object',
-      properties: {
-        success: { type: 'boolean' },
-        token: { type: 'string' },
-        user: {
-          type: 'object',
+      oneOf: [
+        {
+          description: 'Direct login success (single tenant)',
           properties: {
-            id: { type: 'string', format: 'uuid' },
-            email: { type: 'string' },
-            role: { type: 'string' },
-            tenantId: { type: 'string', format: 'uuid' },
+            success: { type: 'boolean' },
+            token: { type: 'string' },
+            user: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                email: { type: 'string' },
+                role: { type: 'string' },
+                tenantId: { type: 'string', format: 'uuid' },
+                firstName: { type: ['string', 'null'] },
+                lastName: { type: ['string', 'null'] },
+              },
+            },
           },
         },
-      },
+        {
+          description: 'Tenant selection required (multiple tenants)',
+          properties: {
+            success: { type: 'boolean' },
+            requiresTenantSelection: { type: 'boolean' },
+            tenants: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  name: { type: 'string' },
+                  slug: { type: 'string' },
+                },
+              },
+            },
+            message: { type: 'string' },
+          },
+        },
+      ],
     },
     401: {
       description: 'Invalid credentials',

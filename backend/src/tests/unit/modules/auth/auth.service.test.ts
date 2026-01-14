@@ -60,7 +60,7 @@ describe('AuthService', () => {
 
       expect(result.success).toBe(true);
       expect(result.token).toBe('mock-jwt-token');
-      expect(result.user.email).toBe('test@example.com');
+      expect(result.user?.email).toBe('test@example.com');
       expect(mockJwt.sign).toHaveBeenCalledWith({
         userId: mockUser.id,
         tenantId: mockUser.tenantId,

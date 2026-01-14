@@ -12,7 +12,7 @@ export const getAllShipmentsSchema: FastifySchema = {
     properties: {
       status: {
         type: 'string',
-        enum: ['CREATED', 'ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED'],
+        enum: ['CREATED', 'ASSIGNED', 'IN_TRANSIT', 'DELIVERED', 'CANCEL_BY_CUSTOMER', 'CANCEL_BY_DRIVER'],
         description: 'Filter by status (optional)',
       },
     },
@@ -37,7 +37,7 @@ export const getAllShipmentsSchema: FastifySchema = {
               customerPhone: { type: 'string' },
               driverId: { type: ['string', 'null'], format: 'uuid' },
               assignedAt: { type: ['string', 'null'], format: 'date-time' },
-              pickedUpAt: { type: ['string', 'null'], format: 'date-time' },
+              cancelledAt: { type: ['string', 'null'], format: 'date-time' },
               deliveredAt: { type: ['string', 'null'], format: 'date-time' },
               createdAt: { type: 'string', format: 'date-time' },
               updatedAt: { type: 'string', format: 'date-time' },
@@ -164,7 +164,7 @@ export const createShipmentSchema: FastifySchema = {
             tenantId: { type: 'string', format: 'uuid' },
             status: {
               type: 'string',
-              enum: ['CREATED', 'ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED'],
+              enum: ['CREATED', 'ASSIGNED', 'IN_TRANSIT', 'DELIVERED', 'CANCEL_BY_CUSTOMER', 'CANCEL_BY_DRIVER'],
             },
             pickupAddress: { type: 'string' },
             deliveryAddress: { type: 'string' },
@@ -274,7 +274,7 @@ export const updateStatusSchema: FastifySchema = {
     properties: {
       status: {
         type: 'string',
-        enum: ['CREATED', 'ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED'],
+        enum: ['CREATED', 'ASSIGNED', 'IN_TRANSIT', 'DELIVERED', 'CANCEL_BY_CUSTOMER', 'CANCEL_BY_DRIVER'],
       },
     },
   },

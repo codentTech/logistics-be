@@ -1,5 +1,6 @@
 import { DashboardRepository } from '../repositories/dashboard.repository';
 import Redis from 'ioredis';
+import { UserRole } from '../../../infra/db/entities/User';
 
 export class DashboardService {
   private dashboardRepository: DashboardRepository;
@@ -8,8 +9,18 @@ export class DashboardService {
     this.dashboardRepository = new DashboardRepository();
   }
 
-  async getSummary(tenantId: string, redis: Redis) {
-    const summary = await this.dashboardRepository.getSummary(tenantId, redis);
+  async getSummary(
+    tenantId: string,
+    redis: Redis,
+    userRole?: UserRole,
+    driverId?: string
+  ) {
+    const summary = await this.dashboardRepository.getSummary(
+      tenantId,
+      redis,
+      userRole,
+      driverId
+    );
     return {
       tenantId: summary.tenantId,
       totalShipments: summary.totalShipments,

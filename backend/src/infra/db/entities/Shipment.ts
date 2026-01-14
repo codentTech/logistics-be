@@ -7,9 +7,10 @@ import { ShipmentStatusHistory } from './ShipmentStatusHistory';
 export enum ShipmentStatus {
   CREATED = 'CREATED',
   ASSIGNED = 'ASSIGNED',
-  PICKED_UP = 'PICKED_UP',
   IN_TRANSIT = 'IN_TRANSIT',
   DELIVERED = 'DELIVERED',
+  CANCEL_BY_CUSTOMER = 'CANCEL_BY_CUSTOMER',
+  CANCEL_BY_DRIVER = 'CANCEL_BY_DRIVER',
 }
 
 @Entity('shipments')
@@ -54,7 +55,7 @@ export class Shipment extends BaseEntity {
   assignedAt: Date | null;
 
   @Column({ type: 'timestamp', nullable: true })
-  pickedUpAt: Date | null;
+  cancelledAt: Date | null;
 
   @Column({ type: 'timestamp', nullable: true })
   deliveredAt: Date | null;

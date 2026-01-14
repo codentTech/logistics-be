@@ -199,7 +199,7 @@ describe('ShipmentService', () => {
       const mockHistory = {
         id: 'history-1',
         shipmentId: mockShipment.id,
-        status: ShipmentStatus.PICKED_UP,
+        status: ShipmentStatus.IN_TRANSIT,
         changedBy: 'user-1',
         changedAt: new Date(),
         metadata: null,
@@ -211,14 +211,14 @@ describe('ShipmentService', () => {
 
       mockShipmentRepository.findById.mockResolvedValue(mockShipment);
       mockQueryRunner.manager.save
-        .mockResolvedValueOnce({ ...mockShipment, status: ShipmentStatus.PICKED_UP })
+        .mockResolvedValueOnce({ ...mockShipment, status: ShipmentStatus.IN_TRANSIT })
         .mockResolvedValueOnce(mockHistory);
       mockShipmentRepository.addStatusHistory.mockResolvedValue(mockHistory);
 
-      const updateDto = { status: ShipmentStatus.PICKED_UP };
+      const updateDto = { status: ShipmentStatus.IN_TRANSIT };
       const result = await shipmentService.updateStatus('shipment-1', 'tenant-1', updateDto, 'user-1');
 
-      expect(result.status).toBe(ShipmentStatus.PICKED_UP);
+      expect(result.status).toBe(ShipmentStatus.IN_TRANSIT);
       expect(mockEventPublisher.publishEvent).toHaveBeenCalled();
     });
 

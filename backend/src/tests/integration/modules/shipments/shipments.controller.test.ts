@@ -196,7 +196,7 @@ describe('ShipmentsController Integration', () => {
         manager: {
           save: jest.fn().mockResolvedValue({
             ...mockShipment,
-            status: ShipmentStatus.PICKED_UP,
+            status: ShipmentStatus.IN_TRANSIT,
           }),
         },
       };
@@ -210,7 +210,7 @@ describe('ShipmentsController Integration', () => {
           'idempotency-key': 'status-key-123',
         },
         payload: {
-          status: ShipmentStatus.PICKED_UP,
+          status: ShipmentStatus.IN_TRANSIT,
         },
       });
 

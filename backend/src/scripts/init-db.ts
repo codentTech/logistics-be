@@ -14,7 +14,7 @@ async function initDatabase() {
     try {
       await queryRunner.query(`
         DO $$ BEGIN
-          CREATE TYPE "public"."user_role_enum" AS ENUM('ops_admin', 'dispatcher', 'driver');
+          CREATE TYPE "public"."user_role_enum" AS ENUM('ops_admin', 'driver', 'customer');
         EXCEPTION
           WHEN duplicate_object THEN null;
         END $$;
@@ -22,7 +22,7 @@ async function initDatabase() {
       
       await queryRunner.query(`
         DO $$ BEGIN
-          CREATE TYPE "public"."shipment_status_enum" AS ENUM('CREATED', 'ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED');
+          CREATE TYPE "public"."shipment_status_enum" AS ENUM('CREATED', 'ASSIGNED', 'IN_TRANSIT', 'DELIVERED', 'CANCEL_BY_CUSTOMER', 'CANCEL_BY_DRIVER');
         EXCEPTION
           WHEN duplicate_object THEN null;
         END $$;
