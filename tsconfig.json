@@ -3,8 +3,8 @@
     "target": "ES2022",
     "module": "commonjs",
     "lib": ["ES2022"],
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "outDir": "./backend/dist",
+    "rootDir": "./backend/src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -17,19 +17,21 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "strictPropertyInitialization": false,
-    "baseUrl": "./src",
+    "baseUrl": "./backend/src",
+    "types": [],
     "paths": {
-      "@/*": ["./*"],
-      "@modules/*": ["./modules/*"],
-      "@shared/*": ["./shared/*"],
-      "@infrastructure/*": ["./infra/*"],
-      "@infra/*": ["./infra/*"],
-      "@domain/*": ["./domain/*"],
-      "@events/*": ["./events/*"],
-      "@api/*": ["./api/*"]
+      "@/*": ["./backend/src/*"],
+      "@modules/*": ["./backend/src/modules/*"],
+      "@shared/*": ["./backend/src/shared/*"],
+      "@infrastructure/*": ["./backend/src/infra/*"],
+      "@infra/*": ["./backend/src/infra/*"],
+      "@domain/*": ["./backend/src/domain/*"],
+      "@events/*": ["./backend/src/events/*"],
+      "@api/*": ["./backend/src/api/*"]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests"]
+  "include": ["backend/src/**/*.ts"],
+  "exclude": ["node_modules", "backend/dist", "backend/src/tests", "frontend", "**/*.test.ts", "**/*.spec.ts"]
 }
+
 

@@ -1,458 +1,276 @@
-# OpsCore Reference Backend Slice
+# OpsCore - Real-Time Logistics Management Platform
 
-Production-grade reference implementation demonstrating real-time logistics backend capabilities.
+A full-stack, production-grade logistics management system with real-time driver tracking, shipment management, and operational dashboards.
 
-## 📘 Documentation
+## 🏗️ Project Structure
 
-**👉 [Complete Developer Guide](DEVELOPER_GUIDE.md)** - Start here for comprehensive documentation
+```
+opsCore/
+├── backend/          # Node.js/TypeScript backend (Fastify)
+├── frontend/         # Next.js/React frontend
+└── README.md         # This file
+```
 
-**Quick Links:**
-- [API Testing Guide](API_TESTING_GUIDE.md) - How to test all APIs
-- [Login Guide](LOGIN_GUIDE.md) - Authentication instructions
-- [State Machine](STATE_MACHINE.md) - Shipment state transitions
-- [MQTT Setup](MQTT_SETUP.md) - MQTT configuration
-- [GraphQL Auth](GRAPHQL_AUTH.md) - GraphQL authentication
+## 🚀 Quick Start
 
-## Quick Start
+### Backend Setup
 
-### Prerequisites
+1. Navigate to backend directory:
+```bash
+cd backend
+```
 
-- Node.js 18+
-- npm or yarn
-- **Access to Ubuntu Server** with:
-  - PostgreSQL 15+ (running on server)
-  - Redis 7+ (running on server)
-  - RabbitMQ 3.12+ (running on server)
-  - MQTT Broker (EMQX) - optional
-
-### Setup
-
-1. **Clone and install dependencies**
+2. Install dependencies:
 ```bash
 npm install
 ```
 
-2. **Configure environment variables**
-
-**Important:** All services (PostgreSQL, Redis, RabbitMQ) run on Ubuntu server. You'll connect to them via connection strings.
+3. Configure environment variables (see [backend/README.md](backend/README.md)):
 ```bash
 cp .env.example .env
+# Edit .env with your server connection strings
 ```
 
-Edit `.env` with connection strings to your Ubuntu server:
-
-```env
-# Database (on Ubuntu server)
-POSTGRES_HOST=your-server-ip-or-domain
-POSTGRES_PORT=5432
-POSTGRES_USER=your_db_user
-POSTGRES_PASSWORD=your_db_password
-POSTGRES_DB=your_db_name
-
-# Redis (on Ubuntu server)
-REDIS_HOST=your-server-ip-or-domain
-REDIS_PORT=6379
-REDIS_PASSWORD=your_redis_password
-
-# RabbitMQ (on Ubuntu server)
-RABBITMQ_URL=amqp://your-server-ip-or-domain:5672
-RABBITMQ_USER=your_rabbitmq_user
-RABBITMQ_PASSWORD=your_rabbitmq_password
-
-# MQTT (on Ubuntu server, optional)
-MQTT_BROKER_URL=mqtt://your-server-ip-or-domain:1883
-```
-
-**Get connection details from your DevOps team or server administrator.**
-
-3. **Initialize database and seed data**
+4. Initialize database:
 ```bash
-# The app will auto-sync schema in development mode
-# Or run migrations in production:
-# npm run migration:run
-
-# Seed initial data (tenant, users, drivers, sample shipments)
 npm run seed
 ```
 
-**Note:** After running seed, copy the `Tenant ID` from the output - you'll need it for login.
-
-4. **Start the server**
+5. Start backend server:
 ```bash
 npm run dev
 ```
 
-Server runs on `http://localhost:3000`
+Backend runs on `http://localhost:5000`
 
-5. **Access Swagger UI**
-```
-http://localhost:3000/docs
-```
+### Frontend Setup
 
-6. **Access GraphQL Playground (Development)**
-```
-http://localhost:3000/graphql
-```
-
-## Demo Flow
-
-### 1. Authentication
-
-**Login as Ops Admin**
+1. Navigate to frontend directory:
 ```bash
-POST /v1/auth/login
-{
-  "email": "admin@tenant1.com",
-  "password": "password123",
-  "tenantId": "tenant-1"
-}
+cd frontend
 ```
 
-Response includes JWT token. Use this token in `Authorization: Bearer <token>` header for subsequent requests.
-
-### 2. Create Shipment
-
-**Create a new shipment**
+2. Install dependencies:
 ```bash
-POST /v1/shipments
-Headers:
-  Authorization: Bearer <token>
-  Idempotency-Key: unique-request-id-1
-Body:
-{
-  "pickupAddress": "123 Main St, City",
-  "deliveryAddress": "456 Oak Ave, City",
-  "customerName": "John Doe",
-  "customerPhone": "+1234567890"
-}
+npm install
 ```
 
-Returns shipment with status `CREATED`.
-
-### 3. Assign Driver
-
-**Assign driver to shipment**
+3. Configure environment variables:
 ```bash
-POST /v1/shipments/{shipmentId}/assign-driver
-Headers:
-  Authorization: Bearer <token>
-  Idempotency-Key: unique-request-id-2
-Body:
-{
-  "driverId": "driver-123"
-}
+# Create .env.local
+NEXT_PUBLIC_MAIN_URL=http://localhost:5000
+NEXT_PUBLIC_SOCKET_URL=http://localhost:5000
 ```
 
-Shipment status transitions to `ASSIGNED`.
-
-### 4. Update Shipment Status
-
-**Mark shipment as picked up**
+4. Start frontend server:
 ```bash
-POST /v1/shipments/{shipmentId}/status
-Headers:
-  Authorization: Bearer <token>
-  Idempotency-Key: unique-request-id-3
-Body:
-{
-  "status": "PICKED_UP"
-}
-```
-
-**Continue state transitions:**
-- `PICKED_UP` → `IN_TRANSIT`
-- `IN_TRANSIT` → `DELIVERED`
-
-### 5. Update Driver Location (Real-Time)
-
-**Option A: Via REST API**
-```bash
-POST /v1/drivers/{driverId}/location
-Headers:
-  Authorization: Bearer <token>
-Body:
-{
-  "latitude": 40.7128,
-  "longitude": -74.0060,
-  "timestamp": "2024-01-15T10:30:00Z"
-}
-```
-
-**Option B: Via MQTT**
-```bash
-# Publish to MQTT topic
-Topic: tenant/{tenantId}/driver/{driverId}/location
-Payload:
-{
-  "latitude": 40.7128,
-  "longitude": -74.0060,
-  "timestamp": "2024-01-15T10:30:00Z"
-}
-```
-
-Both sources store location in Redis with TTL and broadcast via Socket.IO to connected clients.
-
-### 6. Dashboard Summary (CQRS Read)
-
-**Get operational summary**
-```bash
-GET /v1/dashboard/summary
-Headers:
-  Authorization: Bearer <token>
-```
-
-Returns aggregated metrics from CQRS read model.
-
-### 7. GraphQL Dashboard
-
-**Query shipment dashboard**
-```graphql
-query ShipmentDashboard {
-  shipments(status: IN_TRANSIT) {
-    id
-    status
-    driver {
-      id
-      name
-      currentLocation {
-        latitude
-        longitude
-        lastUpdated
-      }
-    }
-    pickupAddress
-    deliveryAddress
-  }
-}
-```
-
-**Query ops summary**
-```graphql
-query OpsSummary {
-  summary {
-    totalShipments
-    activeShipments
-    deliveredToday
-    driversOnline
-  }
-}
-```
-
-### 8. Real-Time Updates (Socket.IO)
-
-Connect to Socket.IO endpoint:
-```javascript
-import { io } from 'socket.io-client';
-
-const socket = io('http://localhost:3000', {
-  auth: {
-    token: '<jwt-token>' // Get from login endpoint
-  }
-});
-
-// Listen for driver location updates
-socket.on('driver:location', (data) => {
-  console.log('Driver location:', data);
-  // {
-  //   driverId: 'driver-123',
-  //   latitude: 40.7128,
-  //   longitude: -74.0060,
-  //   timestamp: '2024-01-15T10:30:00Z',
-  //   source: 'REST' or 'MQTT'
-  // }
-});
-
-// Listen for shipment status changes
-socket.on('shipment:status', (data) => {
-  console.log('Shipment status:', data);
-});
-```
-
-### 9. GraphQL Queries
-
-**Shipment Dashboard:**
-```graphql
-query ShipmentDashboard {
-  shipmentDashboard(status: IN_TRANSIT) {
-    id
-    status
-    pickupAddress
-    deliveryAddress
-    driver {
-      id
-      name
-      currentLocation {
-        latitude
-        longitude
-        timestamp
-        source
-      }
-    }
-  }
-}
-```
-
-**Ops Summary:**
-```graphql
-query OpsSummary {
-  opsSummary {
-    tenantId
-    totalShipments
-    activeShipments
-    deliveredToday
-    driversOnline
-    lastUpdated
-  }
-}
-```
-
-**Note:** GraphQL requires authentication. Include JWT token in Authorization header:
-```
-Authorization: Bearer <token>
-```
-
-## Testing with Postman
-
-1. **Import Collection**
-   - Open Postman
-   - Click Import
-   - Select `postman_collection.json`
-
-2. **Set Variables**
-   - After importing, the collection will have default variables
-   - After running seed script, update `tenantId` variable with the tenant ID from seed output
-
-3. **Run Demo Flow**
-   - Start with "Login - Ops Admin" request
-   - Token will be automatically saved
-   - Continue with other requests in order
-
-4. **Test Idempotency**
-   - Run "Create Shipment" twice with the same `Idempotency-Key`
-   - Second request should return cached response instantly
-
-## Architecture
-
-```
-src/
-├── app.ts                 # Main application entry
-├── config/                # Configuration management
-├── plugins/               # Fastify plugins (auth, swagger, redis, socket)
-├── modules/               # Feature modules
-│   ├── auth/             # Authentication
-│   ├── tenants/          # Tenant management
-│   ├── drivers/          # Driver operations
-│   ├── shipments/        # Shipment lifecycle
-│   └── dashboard/        # Dashboard/CQRS reads
-├── domain/                # Domain logic
-│   ├── stateMachines/    # State machine definitions
-│   └── events/           # Event definitions
-├── infra/                 # Infrastructure
-│   ├── db/               # Database client/migrations
-│   ├── redis/            # Redis client
-│   └── queues/           # Queue stubs
-├── graphql/               # GraphQL schema & resolvers
-└── tests/                 # Test suites
-```
-
-## Key Features Demonstrated
-
-- ✅ Versioned REST APIs (`/v1/*`)
-- ✅ Tenant isolation
-- ✅ Idempotent commands (Idempotency-Key header)
-- ✅ State machine with validation
-- ✅ Redis-backed real-time location tracking
-- ✅ Socket.IO for live updates
-- ✅ GraphQL for complex reads (CQRS)
-- ✅ Swagger/OpenAPI documentation
-- ✅ Postman collection
-
-## Development
-
-```bash
-# Development mode with hot reload
 npm run dev
-
-# Build TypeScript
-npm run build
-
-# Run production build
-npm start
-
-# Database migrations
-npm run migration:generate -- -n MigrationName
-npm run migration:run
-npm run migration:revert
-
-# Seed database
-npm run seed
-
-# Lint code
-npm run lint
-npm run lint:fix
-
-# Type check
-npm run typecheck
 ```
 
-## API Endpoints Summary
+Frontend runs on `http://localhost:3000`
+
+## 📚 Documentation
+
+### Backend
+- **[Complete Developer Guide](backend/DEVELOPER_GUIDE.md)** - Comprehensive backend documentation
+- **[API Testing Guide](backend/API_TESTING_GUIDE.md)** - How to test all APIs
+- **[Login Guide](backend/LOGIN_GUIDE.md)** - Authentication instructions
+- **[State Machine](backend/STATE_MACHINE.md)** - Shipment state transitions
+- **[MQTT Setup](backend/MQTT_SETUP.md)** - MQTT configuration
+- **[GraphQL Auth](backend/GRAPHQL_AUTH.md)** - GraphQL authentication
+- **[Ubuntu Deployment](backend/UBUNTU_DEPLOYMENT.md)** - Server services setup
+- **[Route Simulation](ROUTE_SIMULATION.md)** - Automatic driver movement simulation
+
+### Frontend
+- **[Frontend README](frontend/README.md)** - Complete frontend documentation
+
+## 🎯 Key Features
+
+### Backend
+- ✅ Multi-tenant architecture with tenant isolation
+- ✅ RESTful API with versioning (`/v1/*`)
+- ✅ GraphQL endpoint for complex queries
+- ✅ Real-time updates via Socket.IO
+- ✅ MQTT integration for IoT devices
+- ✅ State machine for shipment lifecycle
+- ✅ Idempotency support
+- ✅ Event-driven architecture (RabbitMQ)
+- ✅ CQRS pattern for reads
+- ✅ Redis for caching and real-time data
+- ✅ **Route Simulation** - Automatic driver movement from pickup to delivery
+- ✅ **OSRM Routing** - Real road-based routes (not straight lines)
+- ✅ **Modular Architecture** - Separated routes, schemas, controllers, services
+
+### Frontend
+- ✅ Real-time driver location tracking
+- ✅ Interactive maps (React-Leaflet)
+- ✅ Driver location sharing from web interface
+- ✅ Shipment management (create, assign, track)
+- ✅ Dashboard with live statistics
+- ✅ Custom UI components
+- ✅ Responsive design
+- ✅ Redux Toolkit for state management
+- ✅ **Map-based Address Picker** - Select pickup/delivery addresses on map
+- ✅ **Driver Filter Dropdown** - Filter drivers on map view
+- ✅ **Sticky Sidebar & Navbar** - Fixed navigation for better UX
+- ✅ **Real-time Route Simulation** - Watch drivers move along actual roads
+
+## 🔧 Tech Stack
+
+### Backend
+- **Runtime**: Node.js 18+
+- **Framework**: Fastify
+- **Language**: TypeScript
+- **Database**: PostgreSQL 15+
+- **Cache**: Redis 7+
+- **Message Queue**: RabbitMQ 3.12+
+- **MQTT**: EMQX
+- **GraphQL**: Mercurius
+- **Real-time**: Socket.IO
+
+### Frontend
+- **Framework**: Next.js 15.3.1
+- **UI Library**: React 19
+- **State Management**: Redux Toolkit
+- **Styling**: Tailwind CSS
+- **Maps**: React-Leaflet, Leaflet
+- **Real-time**: Socket.IO Client
+- **Forms**: React Hook Form, Yup
+- **HTTP Client**: Axios
+
+## 📡 API Endpoints
 
 ### Authentication
 - `POST /v1/auth/login` - Login and get JWT token
 
 ### Shipments
-- `POST /v1/shipments` - Create shipment (idempotent)
-- `POST /v1/shipments/:id/assign-driver` - Assign driver (idempotent)
-- `POST /v1/shipments/:id/status` - Update status (state machine, idempotent)
+- `GET /v1/shipments` - Get all shipments
+- `GET /v1/shipments/:id` - Get shipment by ID
+- `POST /v1/shipments` - Create shipment
+- `POST /v1/shipments/:id/assign-driver` - Assign driver
+- `POST /v1/shipments/:id/status` - Update status
 
 ### Drivers
-- `POST /v1/drivers/:id/location` - Update driver location (REST)
+- `GET /v1/drivers` - Get all drivers
+- `GET /v1/drivers/:id` - Get driver by ID
+- `POST /v1/drivers/:id/location` - Update driver location
 
 ### Dashboard
-- `GET /v1/dashboard/summary` - Get operational summary (CQRS read)
+- `GET /v1/dashboard/summary` - Get operational summary
 
 ### GraphQL
 - `POST /graphql` - GraphQL endpoint
 - `GET /graphql` - GraphiQL playground (development)
 
-### System
-- `GET /health` - Health check endpoint
+## 🔐 Authentication
 
-## Key Features
+All API endpoints (except login) require JWT authentication:
+```
+Authorization: Bearer <token>
+```
 
-✅ **Multi-Tenant Architecture** - Complete tenant isolation  
-✅ **State Machine** - Shipment lifecycle with strict validation  
-✅ **Idempotency** - Redis-backed duplicate request prevention  
-✅ **Dual Input** - REST API + MQTT for driver locations  
-✅ **Event-Driven** - RabbitMQ with transactional outbox pattern  
-✅ **Real-Time** - Socket.IO for live updates  
-✅ **CQRS** - Dashboard read models for performance  
-✅ **GraphQL** - Complex queries with Mercurius  
-✅ **Retry Mechanisms** - Exponential backoff for resilience  
-✅ **Circuit Breaker** - Failure tolerance patterns  
-✅ **Health Checks** - Service monitoring  
+Get token from `/v1/auth/login` endpoint.
 
-## Error Response Format
+## 🌐 Real-Time Features
 
-All errors follow this unified format:
+### Socket.IO Events
 
-```json
+- `driver-location-update` - Real-time driver location updates
+- `shipment-status-update` - Shipment status changes
+
+### MQTT Topics
+
+- `tenant/{tenantId}/driver/{driverId}/location` - Driver location updates
+
+## 📖 Usage Examples
+
+### Create Shipment
+```bash
+POST /v1/shipments
+Headers:
+  Authorization: Bearer <token>
+  Idempotency-Key: unique-request-id
+Body:
 {
-  "success": false,
-  "error_code": "ERROR_CODE",
-  "message": "Human readable error message"
+  "pickupAddress": "123 Main St",
+  "deliveryAddress": "456 Oak Ave",
+  "customerName": "John Doe",
+  "customerPhone": "+1234567890"
 }
 ```
 
-Common error codes:
-- `INVALID_SHIPMENT_STATE` - Invalid state transition
-- `TENANT_NOT_FOUND` - Tenant doesn't exist
-- `DRIVER_NOT_FOUND` - Driver doesn't exist
-- `UNAUTHORIZED` - Invalid or missing token
-- `IDEMPOTENCY_KEY_REQUIRED` - Idempotency key missing
-- `VALIDATION_ERROR` - Request validation failed
+### Share Driver Location (Frontend)
+1. Navigate to `/driver-location` page
+2. Click "Start Sharing Location"
+3. Allow browser location permissions
+4. Location automatically sent to backend
 
-## License
+### View Real-Time Dashboard
+1. Login as admin
+2. Navigate to `/dashboard`
+3. View live driver locations on map
+4. Monitor shipment statistics
+
+## 🧪 Testing
+
+### Backend
+```bash
+cd backend
+npm test              # Run all tests
+npm run test:unit     # Unit tests only
+npm run test:integration  # Integration tests
+```
+
+### Frontend
+```bash
+cd frontend
+npm run lint          # Run ESLint
+npm run type-check    # TypeScript type checking
+```
+
+## 📝 Development Workflow
+
+1. **Backend Development**
+   - Make changes in `backend/src/`
+   - Code is organized by modules (auth, shipments, drivers, dashboard)
+   - Each module has: controllers, routes, schemas, services, dto, repositories
+   - Run `npm run dev` for hot reload
+
+2. **Frontend Development**
+   - Make changes in `frontend/src/`
+   - Components organized by feature
+   - Custom components in `common/components/`
+   - Run `npm run dev` for hot reload
+
+3. **Database Changes**
+   - Update entities in `backend/src/infra/db/entities/`
+   - Run migrations: `npm run migration:generate`
+   - Apply: `npm run migration:run`
+
+## 🐛 Troubleshooting
+
+### Backend Issues
+- Check [TROUBLESHOOT_CONNECTION.md](backend/TROUBLESHOOT_CONNECTION.md)
+- Verify environment variables in `.env`
+- Check server connection strings
+- Review logs for errors
+
+### Frontend Issues
+- Check browser console for errors
+- Verify `NEXT_PUBLIC_MAIN_URL` and `NEXT_PUBLIC_SOCKET_URL`
+- Ensure backend is running
+- Check network tab for API errors
+
+## 📄 License
 
 Proprietary - All rights reserved
+
+## 🤝 Contributing
+
+This is a private project. For questions or issues, contact the development team.
+
+---
+
+**Last Updated**: 2024  
+**Version**: 1.0.0
 

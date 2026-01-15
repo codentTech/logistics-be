@@ -234,21 +234,87 @@ export const updateStatusHandler = (fastify: FastifyInstance) =>
             fastify.redis,
             fastify.io || undefined
           );
+
+          // Verify Phase 1 completed (driver reached pickup)
+          const phase1CompleteKey = `phase1:complete:${tenantId}:${shipment.id}`;
+          const phase1Data = await fastify.redis.get(phase1CompleteKey);
+
           // Stop any existing simulation (Phase 1 should have completed)
           await routeSimulation.stopSimulation(shipment.driverId, tenantId);
-          
+
+          // If Phase 1 didn't complete, use pickup coordinates directly
+          // This ensures Phase 2 always starts from pickup location
+          let pickupCoordinates = null;
+          if (phase1Data) {
+            const phase1Info = JSON.parse(phase1Data);
+            pickupCoordinates = phase1Info.pickupPoint;
+          }
+
+          // If we don't have Phase 1 completion data, geocode pickup address
+          // This handles cases where Phase 1 didn't run or was interrupted
+          if (!pickupCoordinates) {
+            // Geocode pickup address to get coordinates
+            const encodedAddress = encodeURIComponent(shipment.pickupAddress);
+            const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
+            const geocodeResponse = await fetch(geocodeUrl, {
+              headers: { "User-Agent": "OpsCore/1.0" },
+            });
+            if (geocodeResponse.ok) {
+              const geocodeData = await geocodeResponse.json();
+              if (geocodeData && geocodeData.length > 0) {
+                pickupCoordinates = {
+                  lat: parseFloat(geocodeData[0].lat),
+                  lng: parseFloat(geocodeData[0].lon),
+                };
+              }
+            }
+          }
+
           // Start Phase 2: Pickup → Delivery
+          // If we have pickup coordinates, update driver location to pickup first
+          if (pickupCoordinates) {
+            const locationKey = `driver:${tenantId}:${shipment.driverId}:location`;
+            await fastify.redis.setex(
+              locationKey,
+              3600,
+              JSON.stringify({
+                latitude: pickupCoordinates.lat,
+                longitude: pickupCoordinates.lng,
+                timestamp: new Date().toISOString(),
+                source: "SIMULATED",
+              })
+            );
+
+            // Emit location update
+            if (fastify.io) {
+              fastify.io
+                .to(`tenant:${tenantId}`)
+                .emit("driver-location-update", {
+                  driverId: shipment.driverId,
+                  location: {
+                    latitude: pickupCoordinates.lat,
+                    longitude: pickupCoordinates.lng,
+                    timestamp: new Date().toISOString(),
+                  },
+                  source: "SIMULATED",
+                });
+            }
+          }
+
           await routeSimulation.startSimulation(
             shipment.id,
             shipment.driverId,
             tenantId,
             shipment.pickupAddress,
             shipment.deliveryAddress,
-            'TO_DELIVERY' // Phase 2: Pickup → Delivery
+            "TO_DELIVERY" // Phase 2: Pickup → Delivery
           );
         } catch (error) {
           // Log error but don't fail the status update
-          fastify.log.warn({ err: error }, "Failed to start route simulation (Phase 2: TO_DELIVERY)");
+          fastify.log.warn(
+            { err: error },
+            "Failed to start route simulation (Phase 2: TO_DELIVERY)"
+          );
         }
       }
 
@@ -440,6 +506,38 @@ export const approveAssignmentHandler = (fastify: FastifyInstance) =>
         });
       }
 
+      // CRITICAL: Check location BEFORE approving to prevent approval if location is invalid
+      // This prevents the shipment from being approved and then failing location check
+      const locationKey = `driver:${tenantId}:${driverId}:location`;
+      const driverLocation = await fastify.redis.get(locationKey);
+
+      if (!driverLocation) {
+        // Driver hasn't shared location - return error BEFORE approval
+        return reply.status(400).send({
+          success: false,
+          error_code: "LOCATION_REQUIRED",
+          message:
+            "Please share your location before approving the shipment. Go to the 'Share Location' page and start sharing your GPS location.",
+        });
+      }
+
+      const locationData = JSON.parse(driverLocation);
+      const locationTime = new Date(locationData.timestamp);
+      const now = new Date();
+      const locationAge = now.getTime() - locationTime.getTime();
+
+      // Location must be less than 10 minutes old to be considered valid
+      if (locationAge > 10 * 60 * 1000) {
+        // Location is too old - return error BEFORE approval
+        return reply.status(400).send({
+          success: false,
+          error_code: "LOCATION_STALE",
+          message:
+            "Your location is too old. Please refresh your location sharing and try again.",
+        });
+      }
+
+      // Location is valid - proceed with approval
       const shipment = await shipmentService.approveAssignment(
         request.params.id,
         tenantId,
@@ -463,6 +561,7 @@ export const approveAssignmentHandler = (fastify: FastifyInstance) =>
 
       // Start route simulation Phase 1: Driver's current location → Pickup address
       // This happens when driver approves the shipment assignment
+      // Location is already validated above, so we can proceed with simulation
       if (shipment.driverId) {
         try {
           const routeSimulation = new RouteSimulationService(
@@ -481,13 +580,16 @@ export const approveAssignmentHandler = (fastify: FastifyInstance) =>
               tenantId,
               shipment.pickupAddress,
               shipment.deliveryAddress,
-              'TO_PICKUP' // Phase 1: Driver location → Pickup
+              "TO_PICKUP" // Phase 1: Driver location → Pickup
             );
           }
         } catch (error) {
-          // Log error but don't fail the approval
-          // If driver hasn't shared location yet, simulation will fail gracefully
-          fastify.log.warn({ err: error }, "Failed to start route simulation (Phase 1: TO_PICKUP)");
+          // Log error but don't fail the approval (location was already validated)
+          // Route simulation failure shouldn't prevent approval
+          fastify.log.warn(
+            { err: error },
+            "Failed to start route simulation (Phase 1: TO_PICKUP)"
+          );
         }
       }
 

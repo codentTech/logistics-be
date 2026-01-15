@@ -278,22 +278,15 @@ export class RouteSimulationService {
 
       if (phase === 'TO_PICKUP') {
         // Phase 1: Driver's current location → Pickup address
-        let driverLocation = await this.getDriverCurrentLocation(driverId, tenantId);
+        // Driver location is REQUIRED - should be checked before calling startSimulation
+        const driverLocation = await this.getDriverCurrentLocation(driverId, tenantId);
         
-        // If driver location doesn't exist, create a starting point near pickup
-        // This allows simulation to start even if driver hasn't shared location yet
-        // We offset by ~1km so there's visible movement
         if (!driverLocation) {
-          // Calculate a point ~1km away from pickup (north direction)
-          // 1 degree latitude ≈ 111km, so 0.009 ≈ 1km
-          const offsetLat = 0.009; // ~1km north
-          driverLocation = {
-            lat: pickupPoint.lat + offsetLat,
-            lng: pickupPoint.lng,
-          };
-          
-          // Store this as the driver's current location so simulation can proceed
-          await this.updateDriverLocation(driverId, tenantId, driverLocation.lat, driverLocation.lng);
+          throw new AppError(
+            ErrorCode.VALIDATION_ERROR,
+            'Driver location is required to start route simulation. Please share your location first.',
+            400
+          );
         }
 
         startPoint = driverLocation;
@@ -407,8 +400,18 @@ export class RouteSimulationService {
       // For phase 1 (TO_PICKUP), stop simulation when reaching pickup
       // For phase 2 (TO_DELIVERY), stop simulation when reaching delivery
       if (phase === 'TO_PICKUP') {
-        // Driver reached pickup - stop simulation
-        // The simulation will restart in phase 2 when status changes to IN_TRANSIT
+        // Driver reached pickup - mark Phase 1 as complete
+        // Store completion status in Redis for Phase 2 verification
+        const phase1CompleteKey = `phase1:complete:${simulation.tenantId}:${simulation.shipmentId}`;
+        await this.redis.setex(phase1CompleteKey, 3600, JSON.stringify({
+          shipmentId: simulation.shipmentId,
+          driverId: simulation.driverId,
+          completedAt: new Date().toISOString(),
+          pickupPoint: simulation.pickupPoint,
+        }));
+        
+        // Stop Phase 1 simulation
+        // Phase 2 will start automatically when status changes to IN_TRANSIT
         await this.stopSimulation(simulation.driverId, simulation.tenantId);
       } else {
         // Driver reached delivery - stop simulation
@@ -440,7 +443,16 @@ export class RouteSimulationService {
       );
       
       if (phase === 'TO_PICKUP') {
-        // Driver reached pickup - stop simulation
+        // Driver reached pickup - mark Phase 1 as complete
+        const phase1CompleteKey = `phase1:complete:${simulation.tenantId}:${simulation.shipmentId}`;
+        await this.redis.setex(phase1CompleteKey, 3600, JSON.stringify({
+          shipmentId: simulation.shipmentId,
+          driverId: simulation.driverId,
+          completedAt: new Date().toISOString(),
+          pickupPoint: simulation.pickupPoint,
+        }));
+        
+        // Stop Phase 1 simulation
         await this.stopSimulation(simulation.driverId, simulation.tenantId);
       } else {
         // Driver reached delivery - stop simulation
@@ -468,6 +480,7 @@ export class RouteSimulationService {
 
   /**
    * Update driver location and emit Socket.IO event
+   * Only updates if driver is not actively sharing real GPS location (to avoid conflicts)
    */
   private async updateDriverLocation(
     driverId: string,
@@ -476,6 +489,34 @@ export class RouteSimulationService {
     longitude: number
   ): Promise<void> {
     const timestamp = new Date().toISOString();
+
+    // Check if driver is actively sharing real GPS location
+    // If location was updated recently (within last 5 seconds), it's likely real GPS
+    // In that case, we should NOT overwrite it with simulation
+    const locationKey = `driver:${tenantId}:${driverId}:location`;
+    try {
+      const existingLocation = await this.redis.get(locationKey);
+      if (existingLocation) {
+        const existingData = JSON.parse(existingLocation);
+        // If location source is 'REST' or 'MQTT' (real GPS), check timestamp
+        // If it's very recent (within 5 seconds), driver is actively sharing - don't overwrite
+        if (existingData.source && existingData.source !== 'SIMULATED') {
+          const existingTime = new Date(existingData.timestamp);
+          const now = new Date();
+          const age = now.getTime() - existingTime.getTime();
+          
+          // If real GPS location is very recent (less than 5 seconds old), skip simulation update
+          // This prevents simulation from overwriting active GPS sharing
+          if (age < 5000) {
+            // Driver is actively sharing location - don't overwrite with simulation
+            // Instead, use the real location for route calculation
+            return;
+          }
+        }
+      }
+    } catch (error) {
+      // If check fails, proceed with simulation update
+    }
 
     // Update location via LocationProcessorService
     await this.locationProcessor.processLocation(
