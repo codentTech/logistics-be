@@ -112,23 +112,50 @@ export class DashboardRepository {
       }),
     ]);
 
-    // Count drivers with recent location updates (online)
+    // Count drivers with recent location updates OR active shipments (online)
+    // Get all active shipments (APPROVED or IN_TRANSIT) to check driver activity
+    const activeShipmentsList = await this.shipmentRepository.find({
+      where: [
+        { tenantId, status: ShipmentStatus.APPROVED },
+        { tenantId, status: ShipmentStatus.IN_TRANSIT },
+      ],
+      select: ['driverId'],
+    });
+    
+    const driversWithActiveShipments = new Set(
+      activeShipmentsList
+        .map((s) => s.driverId)
+        .filter((id): id is string => id !== null)
+    );
+
     let driversOnline = 0;
     for (const driver of drivers) {
-      const locationKey = `driver:${tenantId}:${driver.id}:location`;
-      try {
-        const location = await redis.get(locationKey);
-        if (location) {
-          const locationData = JSON.parse(location);
-          const locationTime = new Date(locationData.timestamp);
-          // Consider online if location updated in last 5 minutes
-          if (now.getTime() - locationTime.getTime() < 5 * 60 * 1000) {
-            driversOnline++;
+      let isOnline = false;
+      
+      // Check if driver has active shipment (APPROVED or IN_TRANSIT)
+      // Drivers with active shipments are considered online even without recent location updates
+      if (driversWithActiveShipments.has(driver.id)) {
+        isOnline = true;
+      } else {
+        // Otherwise, check for recent location updates (within last 5 minutes)
+        const locationKey = `driver:${tenantId}:${driver.id}:location`;
+        try {
+          const location = await redis.get(locationKey);
+          if (location) {
+            const locationData = JSON.parse(location);
+            const locationTime = new Date(locationData.timestamp);
+            // Consider online if location updated in last 5 minutes
+            if (now.getTime() - locationTime.getTime() < 5 * 60 * 1000) {
+              isOnline = true;
+            }
           }
+        } catch (error) {
+          // Ignore Redis errors
         }
-      } catch (error) {
-        // Ignore Redis errors
-        // Failed to check driver location - using fallback
+      }
+      
+      if (isOnline) {
+        driversOnline++;
       }
     }
 
