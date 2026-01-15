@@ -2,11 +2,14 @@ import Redis from 'ioredis';
 import { Server as SocketIOServer } from 'socket.io';
 import { LocationProcessorService } from '../../drivers/services/location-processor.service';
 import { AppError, ErrorCode } from '../../../shared/errors/error-handler';
+import { refreshConfig } from '../../../config';
 
 interface RoutePoint {
   lat: number;
   lng: number;
 }
+
+type SimulationPhase = 'TO_PICKUP' | 'TO_DELIVERY';
 
 interface SimulationState {
   shipmentId: string;
@@ -16,6 +19,7 @@ interface SimulationState {
   deliveryPoint: RoutePoint;
   currentStep: number;
   totalSteps: number;
+  phase: SimulationPhase;
   intervalId?: NodeJS.Timeout;
 }
 
@@ -24,7 +28,7 @@ export class RouteSimulationService {
   private io: SocketIOServer | null;
   private locationProcessor: LocationProcessorService;
   private activeSimulations: Map<string, SimulationState> = new Map();
-  private readonly UPDATE_INTERVAL_MS = 3000; // Update every 3 seconds
+  private readonly UPDATE_INTERVAL_MS = refreshConfig.routeSimulationInterval;
   private readonly DELIVERY_THRESHOLD_METERS = 50; // Stop when within 50 meters of delivery
 
   constructor(redis: Redis, io?: SocketIOServer) {
@@ -228,14 +232,37 @@ export class RouteSimulationService {
   }
 
   /**
-   * Start simulating driver movement from pickup to delivery
+   * Get driver's current location from Redis
+   */
+  private async getDriverCurrentLocation(driverId: string, tenantId: string): Promise<RoutePoint | null> {
+    const redisKey = `driver:${tenantId}:${driverId}:location`;
+    try {
+      const locationData = await this.redis.get(redisKey);
+      if (locationData) {
+        const location = JSON.parse(locationData);
+        return {
+          lat: location.latitude,
+          lng: location.longitude,
+        };
+      }
+    } catch (error) {
+      // Location not found or error reading
+    }
+    return null;
+  }
+
+  /**
+   * Start simulating driver movement
+   * Phase 1 (TO_PICKUP): Driver's current location → Pickup address (when status is APPROVED)
+   * Phase 2 (TO_DELIVERY): Pickup address → Delivery address (when status is IN_TRANSIT)
    */
   async startSimulation(
     shipmentId: string,
     driverId: string,
     tenantId: string,
     pickupAddress: string,
-    deliveryAddress: string
+    deliveryAddress: string,
+    phase: SimulationPhase = 'TO_PICKUP'
   ): Promise<void> {
     // Stop any existing simulation for this driver
     await this.stopSimulation(driverId, tenantId);
@@ -245,8 +272,43 @@ export class RouteSimulationService {
       const pickupPoint = await this.geocodeAddress(pickupAddress);
       const deliveryPoint = await this.geocodeAddress(deliveryAddress);
 
-      // Get route points following actual roads (OSRM)
-      const routePoints = await this.getRouteFromOSRM(pickupPoint, deliveryPoint);
+      let startPoint: RoutePoint;
+      let endPoint: RoutePoint;
+      let routePoints: RoutePoint[];
+
+      if (phase === 'TO_PICKUP') {
+        // Phase 1: Driver's current location → Pickup address
+        let driverLocation = await this.getDriverCurrentLocation(driverId, tenantId);
+        
+        // If driver location doesn't exist, create a starting point near pickup
+        // This allows simulation to start even if driver hasn't shared location yet
+        // We offset by ~1km so there's visible movement
+        if (!driverLocation) {
+          // Calculate a point ~1km away from pickup (north direction)
+          // 1 degree latitude ≈ 111km, so 0.009 ≈ 1km
+          const offsetLat = 0.009; // ~1km north
+          driverLocation = {
+            lat: pickupPoint.lat + offsetLat,
+            lng: pickupPoint.lng,
+          };
+          
+          // Store this as the driver's current location so simulation can proceed
+          await this.updateDriverLocation(driverId, tenantId, driverLocation.lat, driverLocation.lng);
+        }
+
+        startPoint = driverLocation;
+        endPoint = pickupPoint;
+        
+        // Get route points from driver location to pickup
+        routePoints = await this.getRouteFromOSRM(startPoint, endPoint);
+      } else {
+        // Phase 2: Pickup address → Delivery address
+        startPoint = pickupPoint;
+        endPoint = deliveryPoint;
+        
+        // Get route points from pickup to delivery
+        routePoints = await this.getRouteFromOSRM(startPoint, endPoint);
+      }
 
       // Create simulation state
       const simulationState: SimulationState = {
@@ -256,7 +318,8 @@ export class RouteSimulationService {
         pickupPoint,
         deliveryPoint,
         currentStep: 0,
-        totalSteps: routePoints.length - 1, // Use actual route length (all points)
+        totalSteps: routePoints.length - 1,
+        phase,
       };
 
       // Store in memory and Redis
@@ -275,6 +338,7 @@ export class RouteSimulationService {
           deliveryPoint,
           currentStep: 0,
           totalSteps: routePoints.length - 1,
+          phase,
         })
       );
 
@@ -289,16 +353,17 @@ export class RouteSimulationService {
           pickupPoint,
           deliveryPoint,
           routePoints,
+          phase,
         })
       );
 
-      // Start at pickup location
-      const startPoint = routePoints[0];
-      await this.updateDriverLocation(driverId, tenantId, startPoint.lat, startPoint.lng);
+      // Start at the beginning of the route
+      const initialPoint = routePoints[0];
+      await this.updateDriverLocation(driverId, tenantId, initialPoint.lat, initialPoint.lng);
 
       // Start interval to update location
       const intervalId = setInterval(async () => {
-        await this.updateSimulationStep(simulationKey, routePoints);
+        await this.updateSimulationStep(simulationKey, routePoints, phase);
       }, this.UPDATE_INTERVAL_MS);
 
       simulationState.intervalId = intervalId;
@@ -315,7 +380,11 @@ export class RouteSimulationService {
   /**
    * Update simulation to next step
    */
-  private async updateSimulationStep(simulationKey: string, routePoints: RoutePoint[]): Promise<void> {
+  private async updateSimulationStep(
+    simulationKey: string,
+    routePoints: RoutePoint[],
+    phase: SimulationPhase
+  ): Promise<void> {
     const simulation = this.activeSimulations.get(simulationKey);
     if (!simulation) {
       return; // Simulation was stopped
@@ -326,7 +395,7 @@ export class RouteSimulationService {
 
     // Check if we've reached the end of the route
     if (simulation.currentStep >= routePoints.length) {
-      // Move to final delivery point
+      // Move to final point (pickup for phase 1, delivery for phase 2)
       const finalPoint = routePoints[routePoints.length - 1];
       await this.updateDriverLocation(
         simulation.driverId,
@@ -334,8 +403,17 @@ export class RouteSimulationService {
         finalPoint.lat,
         finalPoint.lng
       );
-      // Stop simulation after reaching delivery
-      await this.stopSimulation(simulation.driverId, simulation.tenantId);
+      
+      // For phase 1 (TO_PICKUP), stop simulation when reaching pickup
+      // For phase 2 (TO_DELIVERY), stop simulation when reaching delivery
+      if (phase === 'TO_PICKUP') {
+        // Driver reached pickup - stop simulation
+        // The simulation will restart in phase 2 when status changes to IN_TRANSIT
+        await this.stopSimulation(simulation.driverId, simulation.tenantId);
+      } else {
+        // Driver reached delivery - stop simulation
+        await this.stopSimulation(simulation.driverId, simulation.tenantId);
+      }
       return;
     }
 
@@ -348,17 +426,26 @@ export class RouteSimulationService {
       currentPoint.lng
     );
 
-    // Check if we're close enough to delivery point (within threshold)
-    const distanceToDelivery = this.calculateDistance(currentPoint, simulation.deliveryPoint);
-    if (distanceToDelivery <= this.DELIVERY_THRESHOLD_METERS) {
-      // Close enough to delivery - move to exact delivery point and stop
+    // Check if we're close enough to target point (within threshold)
+    const targetPoint = phase === 'TO_PICKUP' ? simulation.pickupPoint : simulation.deliveryPoint;
+    const distanceToTarget = this.calculateDistance(currentPoint, targetPoint);
+    
+    if (distanceToTarget <= this.DELIVERY_THRESHOLD_METERS) {
+      // Close enough to target - move to exact point and stop
       await this.updateDriverLocation(
         simulation.driverId,
         simulation.tenantId,
-        simulation.deliveryPoint.lat,
-        simulation.deliveryPoint.lng
+        targetPoint.lat,
+        targetPoint.lng
       );
-      await this.stopSimulation(simulation.driverId, simulation.tenantId);
+      
+      if (phase === 'TO_PICKUP') {
+        // Driver reached pickup - stop simulation
+        await this.stopSimulation(simulation.driverId, simulation.tenantId);
+      } else {
+        // Driver reached delivery - stop simulation
+        await this.stopSimulation(simulation.driverId, simulation.tenantId);
+      }
       return;
     }
 
@@ -374,6 +461,7 @@ export class RouteSimulationService {
         deliveryPoint: simulation.deliveryPoint,
         currentStep: simulation.currentStep,
         totalSteps: simulation.totalSteps,
+        phase: simulation.phase,
       })
     );
   }
@@ -478,6 +566,7 @@ export class RouteSimulationService {
     pickupPoint: RoutePoint;
     deliveryPoint: RoutePoint;
     routePoints: RoutePoint[];
+    phase?: SimulationPhase;
   } | null> {
     const routeKey = `route:${tenantId}:${driverId}`;
     const routeData = await this.redis.get(routeKey);
@@ -498,11 +587,20 @@ export class RouteSimulationService {
     pickupPoint: RoutePoint;
     deliveryPoint: RoutePoint;
     routePoints: RoutePoint[];
+    phase?: SimulationPhase;
   } | null> {
     // Search through active simulations
     for (const [key, simulation] of this.activeSimulations.entries()) {
       if (simulation.shipmentId === shipmentId && simulation.tenantId === tenantId) {
-        return await this.getRouteData(simulation.driverId, tenantId);
+        const routeData = await this.getRouteData(simulation.driverId, tenantId);
+        if (routeData) {
+          return {
+            ...routeData,
+            shipmentId,
+            driverId: simulation.driverId,
+          };
+        }
+        return null;
       }
     }
 

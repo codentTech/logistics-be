@@ -5,6 +5,11 @@ import {
   createShipmentSchema,
   assignDriverSchema,
   updateStatusSchema,
+  approveAssignmentSchema,
+  rejectAssignmentSchema,
+  cancelByCustomerSchema,
+  cancelByDriverSchema,
+  getShipmentRouteSchema,
 } from '../schemas/shipments.schema';
 import {
   getAllShipmentsHandler,
@@ -14,6 +19,8 @@ import {
   updateStatusHandler,
   cancelByCustomerHandler,
   cancelByDriverHandler,
+  approveAssignmentHandler,
+  rejectAssignmentHandler,
   getShipmentRouteHandler,
 } from '../controllers/shipments.controller';
 import { requireAdmin, requireAdminOrDriver, requireCustomer, requireDriver } from '../../../shared/guards/role.guard';
@@ -74,6 +81,7 @@ export async function shipmentRoutes(fastify: FastifyInstance) {
     '/v1/shipments/:id/cancel-by-customer',
     {
       preHandler: [fastify.authenticate, requireCustomer()],
+      schema: cancelByCustomerSchema,
     },
     cancelByCustomerHandler(fastify)
   );
@@ -83,8 +91,29 @@ export async function shipmentRoutes(fastify: FastifyInstance) {
     '/v1/shipments/:id/cancel-by-driver',
     {
       preHandler: [fastify.authenticate, requireDriver()],
+      schema: cancelByDriverSchema,
     },
     cancelByDriverHandler(fastify)
+  );
+
+  // Approve assignment (Driver only)
+  fastify.post<{ Params: { id: string } }>(
+    '/v1/shipments/:id/approve',
+    {
+      preHandler: [fastify.authenticate, requireDriver()],
+      schema: approveAssignmentSchema,
+    },
+    approveAssignmentHandler(fastify)
+  );
+
+  // Reject assignment (Driver only)
+  fastify.post<{ Params: { id: string } }>(
+    '/v1/shipments/:id/reject',
+    {
+      preHandler: [fastify.authenticate, requireDriver()],
+      schema: rejectAssignmentSchema,
+    },
+    rejectAssignmentHandler(fastify)
   );
 
   // Get shipment route (Admin or Driver)
@@ -92,6 +121,7 @@ export async function shipmentRoutes(fastify: FastifyInstance) {
     '/v1/shipments/:id/route',
     {
       preHandler: [fastify.authenticate, requireAdminOrDriver()],
+      schema: getShipmentRouteSchema,
     },
     getShipmentRouteHandler(fastify)
   );

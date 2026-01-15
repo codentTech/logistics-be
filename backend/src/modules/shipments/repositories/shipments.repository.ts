@@ -1,6 +1,6 @@
-import { Repository } from 'typeorm';
+import { Repository, Not, In } from 'typeorm';
 import { AppDataSource } from '../../../infra/db/data-source';
-import { Shipment } from '../../../infra/db/entities/Shipment';
+import { Shipment, ShipmentStatus } from '../../../infra/db/entities/Shipment';
 import { ShipmentStatusHistory } from '../../../infra/db/entities/ShipmentStatusHistory';
 
 export class ShipmentRepository {
@@ -48,7 +48,14 @@ export class ShipmentRepository {
 
   async findByDriver(tenantId: string, driverId: string): Promise<Shipment[]> {
     return this.shipmentRepository.find({
-      where: { tenantId, driverId },
+      where: { 
+        tenantId, 
+        driverId,
+        // Exclude cancelled shipments - drivers should not see shipments they or customers cancelled
+        // When a shipment is cancelled, it reverts to CREATED status but driverId is cleared
+        // So we only show shipments that are not cancelled (status is not CANCEL_BY_DRIVER or CANCEL_BY_CUSTOMER)
+        status: Not(In([ShipmentStatus.CANCEL_BY_DRIVER, ShipmentStatus.CANCEL_BY_CUSTOMER]))
+      },
       relations: ['driver'],
       order: { createdAt: 'DESC' },
     });

@@ -115,8 +115,8 @@ export class AuthService {
         email: user.email,
         role: user.role,
         tenantId: user.tenantId,
-        firstName: user.firstName || null,
-        lastName: user.lastName || null,
+        firstName: user.firstName || undefined,
+        lastName: user.lastName || undefined,
       },
     };
   }

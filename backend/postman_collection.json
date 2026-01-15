@@ -1,8 +1,8 @@
 {
 	"info": {
-		"_postman_id": "opscore-reference-slice",
-		"name": "OpsCore Reference Backend Slice",
-		"description": "Complete demo flow for OpsCore reference implementation. Import this collection and set the baseUrl variable.",
+		"_postman_id": "opscore-api-collection",
+		"name": "OpsCore API Collection",
+		"description": "Complete API collection for OpsCore Logistics Management System. Import this collection and set the baseUrl variable. All endpoints support JWT authentication via Bearer token.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"auth": {
@@ -40,6 +40,11 @@
 			"key": "driverId",
 			"value": "",
 			"type": "string"
+		},
+		{
+			"key": "notificationId",
+			"value": "",
+			"type": "string"
 		}
 	],
 	"item": [
@@ -47,7 +52,7 @@
 			"name": "Authentication",
 			"item": [
 				{
-					"name": "Login - Ops Admin",
+					"name": "Login",
 					"event": [
 						{
 							"listen": "test",
@@ -55,16 +60,41 @@
 								"exec": [
 									"if (pm.response.code === 200) {",
 									"    const jsonData = pm.response.json();",
-									"    pm.collectionVariables.set('authToken', jsonData.token);",
-									"    pm.collectionVariables.set('tenantId', jsonData.user.tenantId);",
-									"    pm.collectionVariables.set('driverId', jsonData.user.id);",
-									"    console.log('✅ Login successful. Token saved.');",
+									"    if (jsonData.token) {",
+									"        pm.collectionVariables.set('authToken', jsonData.token);",
+									"        pm.collectionVariables.set('tenantId', jsonData.user.tenantId);",
+									"        console.log('✅ Login successful. Token saved.');",
+									"    } else if (jsonData.requiresTenantSelection) {",
+									"        console.log('⚠️ Tenant selection required:', jsonData.tenants);",
+									"    }",
 									"}"
 								],
 								"type": "text/javascript"
 							}
 						}
 					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@tenant1.com\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/v1/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "auth", "login"]
+						},
+						"description": "Login to get JWT token. For multi-tenant users, you'll receive a tenant list and need to call this again with tenantId."
+					}
+				},
+				{
+					"name": "Login with Tenant Selection",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -82,7 +112,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "auth", "login"]
 						},
-						"description": "Login as ops admin. After running seed script, use the tenant ID from the output."
+						"description": "Login with tenant selection (for multi-tenant users). Use after receiving tenant list from initial login."
 					}
 				}
 			]
@@ -90,6 +120,40 @@
 		{
 			"name": "Shipments",
 			"item": [
+				{
+					"name": "Get All Shipments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/v1/shipments?status=CREATED",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "shipments"],
+							"query": [
+								{
+									"key": "status",
+									"value": "CREATED",
+									"description": "Optional: Filter by status (CREATED, ASSIGNED, APPROVED, IN_TRANSIT, DELIVERED, CANCEL_BY_CUSTOMER, CANCEL_BY_DRIVER)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get all shipments for the authenticated tenant. Admin sees all shipments, Driver sees only assigned shipments. Optional status filter available."
+					}
+				},
+				{
+					"name": "Get Shipment by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/v1/shipments/{{shipmentId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "shipments", "{{shipmentId}}"]
+						},
+						"description": "Get detailed information about a specific shipment. Admin can view any shipment, Driver can only view assigned shipments."
+					}
+				},
 				{
 					"name": "Create Shipment",
 					"event": [
@@ -129,7 +193,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "shipments"]
 						},
-						"description": "Create a new shipment. Idempotency-Key header ensures duplicate requests return the same response."
+						"description": "Create a new shipment. Admin only. Idempotency-Key header ensures duplicate requests return the same response."
 					}
 				},
 				{
@@ -155,33 +219,43 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "shipments", "{{shipmentId}}", "assign-driver"]
 						},
-						"description": "Assign a driver to a shipment. Changes status from CREATED to ASSIGNED."
+						"description": "Assign a driver to a shipment. Admin only. Changes status from CREATED to ASSIGNED and sets pendingApproval to true."
 					}
 				},
 				{
-					"name": "Update Status - PICKED_UP",
+					"name": "Approve Assignment",
 					"request": {
 						"method": "POST",
 						"header": [
 							{
 								"key": "Content-Type",
 								"value": "application/json"
-							},
-							{
-								"key": "Idempotency-Key",
-								"value": "{{$randomUUID}}"
 							}
 						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"status\": \"PICKED_UP\"\n}"
-						},
 						"url": {
-							"raw": "{{baseUrl}}/v1/shipments/{{shipmentId}}/status",
+							"raw": "{{baseUrl}}/v1/shipments/{{shipmentId}}/approve",
 							"host": ["{{baseUrl}}"],
-							"path": ["v1", "shipments", "{{shipmentId}}", "status"]
+							"path": ["v1", "shipments", "{{shipmentId}}", "approve"]
 						},
-						"description": "Update shipment status to PICKED_UP. Valid transition: ASSIGNED → PICKED_UP"
+						"description": "Driver approves shipment assignment. Changes status from ASSIGNED to APPROVED and starts route simulation Phase 1 (TO_PICKUP). Driver only."
+					}
+				},
+				{
+					"name": "Reject Assignment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/shipments/{{shipmentId}}/reject",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "shipments", "{{shipmentId}}", "reject"]
+						},
+						"description": "Driver rejects shipment assignment. Changes status from ASSIGNED back to CREATED and removes driver assignment. Driver only."
 					}
 				},
 				{
@@ -207,7 +281,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "shipments", "{{shipmentId}}", "status"]
 						},
-						"description": "Update shipment status to IN_TRANSIT. Valid transition: PICKED_UP → IN_TRANSIT"
+						"description": "Update shipment status to IN_TRANSIT. Valid transition: APPROVED → IN_TRANSIT. Triggers route simulation Phase 2 (TO_DELIVERY). Admin or Driver."
 					}
 				},
 				{
@@ -233,7 +307,56 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "shipments", "{{shipmentId}}", "status"]
 						},
-						"description": "Update shipment status to DELIVERED. Valid transition: IN_TRANSIT → DELIVERED"
+						"description": "Update shipment status to DELIVERED. Valid transition: IN_TRANSIT → DELIVERED. Admin or Driver."
+					}
+				},
+				{
+					"name": "Cancel by Customer",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/shipments/{{shipmentId}}/cancel-by-customer",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "shipments", "{{shipmentId}}", "cancel-by-customer"]
+						},
+						"description": "Customer cancels a shipment. Changes status to CANCEL_BY_CUSTOMER. Only allowed before IN_TRANSIT. Customer only."
+					}
+				},
+				{
+					"name": "Cancel by Driver",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/shipments/{{shipmentId}}/cancel-by-driver",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "shipments", "{{shipmentId}}", "cancel-by-driver"]
+						},
+						"description": "Driver cancels a shipment. Changes status to CANCEL_BY_DRIVER. Only allowed before IN_TRANSIT. Driver only (must be assigned driver)."
+					}
+				},
+				{
+					"name": "Get Shipment Route",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/v1/shipments/{{shipmentId}}/route",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "shipments", "{{shipmentId}}", "route"]
+						},
+						"description": "Get real-time route simulation data for a shipment. Returns route points, current position, and phase (TO_PICKUP or TO_DELIVERY). Admin or Driver."
 					}
 				}
 			]
@@ -241,6 +364,49 @@
 		{
 			"name": "Drivers",
 			"item": [
+				{
+					"name": "Get All Drivers",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.length > 0) {",
+									"        pm.collectionVariables.set('driverId', jsonData.data[0].id);",
+									"        console.log('✅ Driver ID saved:', jsonData.data[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/v1/drivers",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "drivers"]
+						},
+						"description": "Get all active drivers for the authenticated tenant with their current locations. Admin or Driver."
+					}
+				},
+				{
+					"name": "Get Driver by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/v1/drivers/{{driverId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "drivers", "{{driverId}}"]
+						},
+						"description": "Get detailed information about a specific driver including current location. Admin or Driver (drivers can only view their own details)."
+					}
+				},
 				{
 					"name": "Update Driver Location (REST)",
 					"request": {
@@ -260,7 +426,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "drivers", "{{driverId}}", "location"]
 						},
-						"description": "Update driver location via REST API. Location is stored in Redis and broadcast via Socket.IO."
+						"description": "Update driver location via REST API. Location is stored in Redis and broadcast via Socket.IO. Admin or Driver (drivers can only update their own location). Alternative: Use MQTT topic tenant/{tenantId}/driver/{driverId}/location"
 					}
 				}
 			]
@@ -269,7 +435,7 @@
 			"name": "Dashboard",
 			"item": [
 				{
-					"name": "Get Summary (CQRS Read)",
+					"name": "Get Summary",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -278,7 +444,105 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "dashboard", "summary"]
 						},
-						"description": "Get operational dashboard summary. Uses CQRS read model for performance."
+						"description": "Get real-time operational dashboard summary. Uses CQRS read model for performance. Returns totalShipments, activeShipments, deliveredToday, driversOnline, and lastUpdated. All authenticated users."
+					}
+				}
+			]
+		},
+		{
+			"name": "Notifications",
+			"item": [
+				{
+					"name": "Get Notifications",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.notifications && jsonData.data.notifications.length > 0) {",
+									"        pm.collectionVariables.set('notificationId', jsonData.data.notifications[0].id);",
+									"        console.log('✅ Notification ID saved:', jsonData.data.notifications[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/v1/notifications?limit=50&offset=0",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "notifications"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "50",
+									"description": "Number of notifications to return (default: 50, max: 100)",
+									"disabled": true
+								},
+								{
+									"key": "offset",
+									"value": "0",
+									"description": "Number of notifications to skip (default: 0)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get paginated list of notifications for the authenticated user. Returns notifications array and total count. Ordered by creation date (newest first). All authenticated users."
+					}
+				},
+				{
+					"name": "Get Unread Count",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/v1/notifications/unread-count",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "notifications", "unread-count"]
+						},
+						"description": "Get the count of unread notifications. Useful for displaying a badge or indicator. All authenticated users."
+					}
+				},
+				{
+					"name": "Mark Notification as Read",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/notifications/{{notificationId}}/read",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "notifications", "{{notificationId}}", "read"]
+						},
+						"description": "Mark a specific notification as read. Returns the updated notification with status READ. All authenticated users (can only mark own notifications)."
+					}
+				},
+				{
+					"name": "Mark All Notifications as Read",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/notifications/read-all",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "notifications", "read-all"]
+						},
+						"description": "Mark all unread notifications for the authenticated user as read. All authenticated users."
 					}
 				}
 			]
@@ -296,7 +560,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["health"]
 						},
-						"description": "Check system health status (database, Redis, RabbitMQ)"
+						"description": "Check system health status (database, Redis, RabbitMQ). No authentication required."
 					}
 				}
 			]

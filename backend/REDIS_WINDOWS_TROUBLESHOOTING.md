@@ -1,5 +1,7 @@
 # Redis Connection Troubleshooting for Windows
 
+> **📖 Installation Guide:** See [INSTALL_REDIS_WINDOWS.md](./INSTALL_REDIS_WINDOWS.md) for step-by-step installation instructions.
+
 ## Common Issues on Windows
 
 ### 1. Redis Not Running

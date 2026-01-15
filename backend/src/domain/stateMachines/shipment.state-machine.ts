@@ -6,7 +6,8 @@ const PICKED_UP_LEGACY = 'PICKED_UP' as ShipmentStatus;
 
 const VALID_TRANSITIONS: Record<string, ShipmentStatus[]> = {
   [ShipmentStatus.CREATED]: [ShipmentStatus.ASSIGNED, ShipmentStatus.CANCEL_BY_CUSTOMER],
-  [ShipmentStatus.ASSIGNED]: [ShipmentStatus.IN_TRANSIT, ShipmentStatus.CANCEL_BY_CUSTOMER, ShipmentStatus.CANCEL_BY_DRIVER],
+  [ShipmentStatus.ASSIGNED]: [ShipmentStatus.APPROVED, ShipmentStatus.CANCEL_BY_CUSTOMER, ShipmentStatus.CANCEL_BY_DRIVER, ShipmentStatus.CREATED], // Can reject (revert to CREATED)
+  [ShipmentStatus.APPROVED]: [ShipmentStatus.IN_TRANSIT, ShipmentStatus.CANCEL_BY_CUSTOMER, ShipmentStatus.CANCEL_BY_DRIVER],
   [ShipmentStatus.IN_TRANSIT]: [ShipmentStatus.DELIVERED],
   [ShipmentStatus.DELIVERED]: [], // Terminal state
   // Cancelled shipments can be reassigned (transition back to ASSIGNED)

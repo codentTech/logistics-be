@@ -22,7 +22,23 @@ async function initDatabase() {
       
       await queryRunner.query(`
         DO $$ BEGIN
-          CREATE TYPE "public"."shipment_status_enum" AS ENUM('CREATED', 'ASSIGNED', 'IN_TRANSIT', 'DELIVERED', 'CANCEL_BY_CUSTOMER', 'CANCEL_BY_DRIVER');
+          CREATE TYPE "public"."shipment_status_enum" AS ENUM('CREATED', 'ASSIGNED', 'APPROVED', 'IN_TRANSIT', 'DELIVERED', 'CANCEL_BY_CUSTOMER', 'CANCEL_BY_DRIVER');
+        EXCEPTION
+          WHEN duplicate_object THEN null;
+        END $$;
+      `);
+      
+      await queryRunner.query(`
+        DO $$ BEGIN
+          CREATE TYPE "public"."notification_type_enum" AS ENUM('SHIPMENT_ASSIGNED', 'SHIPMENT_APPROVED', 'SHIPMENT_REJECTED', 'SHIPMENT_CANCELLED', 'SHIPMENT_IN_TRANSIT', 'SHIPMENT_DELIVERED');
+        EXCEPTION
+          WHEN duplicate_object THEN null;
+        END $$;
+      `);
+      
+      await queryRunner.query(`
+        DO $$ BEGIN
+          CREATE TYPE "public"."notification_status_enum" AS ENUM('UNREAD', 'READ');
         EXCEPTION
           WHEN duplicate_object THEN null;
         END $$;

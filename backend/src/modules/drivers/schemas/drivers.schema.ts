@@ -1,38 +1,52 @@
-import { FastifySchema } from 'fastify';
+import { FastifySchema } from "fastify";
 
 /**
  * Schema for GET /v1/drivers
  */
 export const getAllDriversSchema: FastifySchema = {
-  description: 'Get all active drivers for the authenticated tenant',
-  tags: ['drivers'],
+  summary: "Get all drivers",
+  description: `
+Get all active drivers for the authenticated tenant with their current locations.
+
+**Access:** Admin or Driver
+
+**Response:**
+Returns an array of driver objects including:
+- Driver profile information (name, phone, license number)
+- Current location (latitude, longitude, timestamp) if available
+- Active status
+
+**Location Data:**
+Location data is retrieved from Redis cache and reflects the most recent location update. If a driver hasn't shared their location, the \`location\` field will be \`null\`.
+  `,
+  tags: ["drivers"],
   security: [{ bearerAuth: [] }],
   response: {
     200: {
-      description: 'List of drivers',
-      type: 'object',
+      description: "List of drivers",
+      type: "object",
       properties: {
-        success: { type: 'boolean' },
+        success: { type: "boolean" },
         data: {
-          type: 'array',
+          type: "array",
           items: {
-            type: 'object',
+            type: "object",
             properties: {
-              id: { type: 'string', format: 'uuid' },
-              tenantId: { type: 'string', format: 'uuid' },
-              userId: { type: ['string', 'null'], format: 'uuid' },
-              name: { type: 'string' },
-              phone: { type: ['string', 'null'] },
-              licenseNumber: { type: ['string', 'null'] },
-              isActive: { type: 'boolean' },
-              createdAt: { type: 'string', format: 'date-time' },
-              updatedAt: { type: 'string', format: 'date-time' },
+              id: { type: "string", format: "uuid" },
+              tenantId: { type: "string", format: "uuid" },
+              userId: { type: ["string", "null"], format: "uuid" },
+              name: { type: "string" },
+              phone: { type: ["string", "null"] },
+              licenseNumber: { type: ["string", "null"] },
+              isActive: { type: "boolean" },
+              createdAt: { type: "string", format: "date-time" },
+              updatedAt: { type: "string", format: "date-time" },
               location: {
-                type: ['object', 'null'],
+                type: ["object", "null"],
                 properties: {
-                  latitude: { type: 'number' },
-                  longitude: { type: 'number' },
-                  timestamp: { type: 'string', format: 'date-time' },
+                  latitude: { type: "number" },
+                  longitude: { type: "number" },
+                  timestamp: { type: "string", format: "date-time" },
                 },
               },
             },
@@ -41,12 +55,12 @@ export const getAllDriversSchema: FastifySchema = {
       },
     },
     401: {
-      description: 'Unauthorized',
-      type: 'object',
+      description: "Unauthorized",
+      type: "object",
       properties: {
-        success: { type: 'boolean' },
-        error_code: { type: 'string' },
-        message: { type: 'string' },
+        success: { type: "boolean" },
+        error_code: { type: "string" },
+        message: { type: "string" },
       },
     },
   },
@@ -56,39 +70,50 @@ export const getAllDriversSchema: FastifySchema = {
  * Schema for GET /v1/drivers/:id
  */
 export const getDriverByIdSchema: FastifySchema = {
-  description: 'Get a driver by ID',
-  tags: ['drivers'],
+  summary: "Get driver by ID",
+  description: `
+Get detailed information about a specific driver by their ID.
+
+**Access:** Admin or Driver (drivers can only view their own details)
+
+**Response:**
+Returns complete driver information including profile details and current location (if available).
+
+**Location Data:**
+Location data is retrieved from Redis cache and reflects the most recent location update.
+  `,
+  tags: ["drivers"],
   security: [{ bearerAuth: [] }],
   params: {
-    type: 'object',
+    type: "object",
     properties: {
-      id: { type: 'string', format: 'uuid' },
+      id: { type: "string", format: "uuid" },
     },
   },
   response: {
     200: {
-      description: 'Driver details',
-      type: 'object',
+      description: "Driver details",
+      type: "object",
       properties: {
-        success: { type: 'boolean' },
+        success: { type: "boolean" },
         data: {
-          type: 'object',
+          type: "object",
           properties: {
-            id: { type: 'string', format: 'uuid' },
-            tenantId: { type: 'string', format: 'uuid' },
-            userId: { type: ['string', 'null'], format: 'uuid' },
-            name: { type: 'string' },
-            phone: { type: ['string', 'null'] },
-            licenseNumber: { type: ['string', 'null'] },
-            isActive: { type: 'boolean' },
-            createdAt: { type: 'string', format: 'date-time' },
-            updatedAt: { type: 'string', format: 'date-time' },
+            id: { type: "string", format: "uuid" },
+            tenantId: { type: "string", format: "uuid" },
+            userId: { type: ["string", "null"], format: "uuid" },
+            name: { type: "string" },
+            phone: { type: ["string", "null"] },
+            licenseNumber: { type: ["string", "null"] },
+            isActive: { type: "boolean" },
+            createdAt: { type: "string", format: "date-time" },
+            updatedAt: { type: "string", format: "date-time" },
             location: {
-              type: ['object', 'null'],
+              type: ["object", "null"],
               properties: {
-                latitude: { type: 'number' },
-                longitude: { type: 'number' },
-                timestamp: { type: 'string', format: 'date-time' },
+                latitude: { type: "number" },
+                longitude: { type: "number" },
+                timestamp: { type: "string", format: "date-time" },
               },
             },
           },
@@ -96,21 +121,21 @@ export const getDriverByIdSchema: FastifySchema = {
       },
     },
     404: {
-      description: 'Driver not found',
-      type: 'object',
+      description: "Driver not found",
+      type: "object",
       properties: {
-        success: { type: 'boolean' },
-        error_code: { type: 'string' },
-        message: { type: 'string' },
+        success: { type: "boolean" },
+        error_code: { type: "string" },
+        message: { type: "string" },
       },
     },
     401: {
-      description: 'Unauthorized',
-      type: 'object',
+      description: "Unauthorized",
+      type: "object",
       properties: {
-        success: { type: 'boolean' },
-        error_code: { type: 'string' },
-        message: { type: 'string' },
+        success: { type: "boolean" },
+        error_code: { type: "string" },
+        message: { type: "string" },
       },
     },
   },
@@ -142,50 +167,49 @@ mosquitto_pub -h your-mqtt-server -p 1883 \\
 \`\`\`
 
 Both REST and MQTT store location in Redis and broadcast via Socket.IO.`,
-  tags: ['drivers'],
+  tags: ["drivers"],
   security: [{ bearerAuth: [] }],
   params: {
-    type: 'object',
+    type: "object",
     properties: {
-      id: { type: 'string', format: 'uuid' },
+      id: { type: "string", format: "uuid" },
     },
   },
   body: {
-    type: 'object',
-    required: ['latitude', 'longitude'],
+    type: "object",
+    required: ["latitude", "longitude"],
     properties: {
-      latitude: { type: 'number' },
-      longitude: { type: 'number' },
-      timestamp: { type: 'string', format: 'date-time' },
+      latitude: { type: "number" },
+      longitude: { type: "number" },
+      timestamp: { type: "string", format: "date-time" },
     },
   },
   response: {
     200: {
-      description: 'Location updated successfully',
-      type: 'object',
+      description: "Location updated successfully",
+      type: "object",
       properties: {
-        success: { type: 'boolean' },
-        message: { type: 'string' },
+        success: { type: "boolean" },
+        message: { type: "string" },
       },
     },
     400: {
-      description: 'Bad request',
-      type: 'object',
+      description: "Bad request",
+      type: "object",
       properties: {
-        success: { type: 'boolean' },
-        error_code: { type: 'string' },
-        message: { type: 'string' },
+        success: { type: "boolean" },
+        error_code: { type: "string" },
+        message: { type: "string" },
       },
     },
     401: {
-      description: 'Unauthorized',
-      type: 'object',
+      description: "Unauthorized",
+      type: "object",
       properties: {
-        success: { type: 'boolean' },
-        error_code: { type: 'string' },
-        message: { type: 'string' },
+        success: { type: "boolean" },
+        error_code: { type: "string" },
+        message: { type: "string" },
       },
     },
   },
 };
-

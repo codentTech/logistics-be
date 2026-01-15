@@ -41,7 +41,9 @@ export class ShipmentResponseDto {
   customerName: string;
   customerPhone: string;
   assignedAt: Date | null;
-  pickedUpAt: Date | null;
+  pendingApproval: boolean;
+  approvedAt: Date | null;
+  cancelledAt: Date | null;
   deliveredAt: Date | null;
   createdAt: Date;
   updatedAt: Date;

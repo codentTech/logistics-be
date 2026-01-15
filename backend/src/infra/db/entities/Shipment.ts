@@ -7,6 +7,7 @@ import { ShipmentStatusHistory } from './ShipmentStatusHistory';
 export enum ShipmentStatus {
   CREATED = 'CREATED',
   ASSIGNED = 'ASSIGNED',
+  APPROVED = 'APPROVED',
   IN_TRANSIT = 'IN_TRANSIT',
   DELIVERED = 'DELIVERED',
   CANCEL_BY_CUSTOMER = 'CANCEL_BY_CUSTOMER',
@@ -53,6 +54,12 @@ export class Shipment extends BaseEntity {
 
   @Column({ type: 'timestamp', nullable: true })
   assignedAt: Date | null;
+
+  @Column({ type: 'boolean', default: false })
+  pendingApproval: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  approvedAt: Date | null;
 
   @Column({ type: 'timestamp', nullable: true })
   cancelledAt: Date | null;

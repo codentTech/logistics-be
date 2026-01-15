@@ -101,10 +101,17 @@ const socketPlugin: FastifyPluginAsync = async (fastify) => {
   io.on('connection', (socket) => {
     const user = (socket as any).user;
     const tenantId = user.tenantId;
+    const userId = user.userId;
 
     // Join tenant room automatically on connection
     socket.join(`tenant:${tenantId}`);
-    fastify.log.info(`Socket connected: ${socket.id} (tenant: ${tenantId})`);
+    
+    // Join user-specific room for notifications
+    if (userId) {
+      socket.join(`user:${userId}`);
+    }
+    
+    fastify.log.info(`Socket connected: ${socket.id} (tenant: ${tenantId}, user: ${userId})`);
 
     // Handle explicit join-tenant event (for reconnection scenarios)
     socket.on('join-tenant', (roomTenantId: string) => {

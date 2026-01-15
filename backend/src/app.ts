@@ -9,6 +9,7 @@ import { authRoutes } from './modules/auth/routes/auth.routes';
 import { shipmentRoutes } from './modules/shipments/routes/shipments.routes';
 import { driverRoutes } from './modules/drivers/routes/drivers.routes';
 import { dashboardRoutes } from './modules/dashboard/routes/dashboard.routes';
+import { notificationRoutes } from './modules/notifications/routes/notifications.routes';
 import idempotencyPlugin from './plugins/idempotency';
 import redisPlugin from './plugins/redis';
 import socketPlugin from './plugins/socket';
@@ -44,8 +45,15 @@ async function buildApp(): Promise<FastifyInstance> {
   });
 
   await app.register(require('@fastify/rate-limit'), {
-    max: 100,
+    max: 200, // Increased for real-time systems (was 100)
     timeWindow: '1 minute',
+    // Exclude health check from rate limiting
+    skipOnError: false,
+    addHeaders: {
+      'x-ratelimit-limit': true,
+      'x-ratelimit-remaining': true,
+      'x-ratelimit-reset': true,
+    },
   });
 
   // Register custom plugins
@@ -93,6 +101,7 @@ async function buildApp(): Promise<FastifyInstance> {
   await app.register(shipmentRoutes);
   await app.register(driverRoutes);
   await app.register(dashboardRoutes);
+  await app.register(notificationRoutes);
 
   // Health check
   const { HealthCheckService } = await import('./infra/resilience/health-check.service');

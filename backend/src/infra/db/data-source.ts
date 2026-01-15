@@ -7,6 +7,7 @@ import { Shipment } from './entities/Shipment';
 import { ShipmentStatusHistory } from './entities/ShipmentStatusHistory';
 import { EventOutbox } from './entities/EventOutbox';
 import { DashboardSummary } from './entities/DashboardSummary';
+import { Notification } from './entities/Notification';
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -23,6 +24,7 @@ export const AppDataSource = new DataSource({
     ShipmentStatusHistory,
     EventOutbox,
     DashboardSummary,
+    Notification,
   ],
   migrations: ['src/infra/db/migrations/*.ts'],
   synchronize: process.env.NODE_ENV === 'development' && process.env.DB_SYNC === 'true',
