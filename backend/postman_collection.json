@@ -83,14 +83,19 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"admin@tenant1.com\",\n  \"password\": \"password123\"\n}"
+							"raw": "{\n  \"email\": \"admin@acme.com\",\n  \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{baseUrl}}/v1/auth/login",
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "auth", "login"]
 						},
-						"description": "Login to get JWT token. For multi-tenant users, you'll receive a tenant list and need to call this again with tenantId."
+						"description": "Login to get JWT token. For multi-tenant users, you'll receive a tenant list and need to call this again with tenantId.\n\n**Example Request:**\n```json\n{\n  \"email\": \"admin@acme.com\",\n  \"password\": \"password123\"\n}\n```\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"user\": {\n      \"id\": \"123e4567-e89b-12d3-a456-426614174000\",\n      \"email\": \"admin@acme.com\",\n      \"role\": \"admin\",\n      \"tenantId\": \"tenant-123\"\n    }\n  }\n}\n```\n\n**Example Response (Multi-tenant user):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"requiresTenantSelection\": true,\n    \"tenants\": [\n      {\n        \"id\": \"tenant-123\",\n        \"name\": \"Tenant 1\"\n      },\n      {\n        \"id\": \"tenant-456\",\n        \"name\": \"Tenant 2\"\n      }\n    ]\n  }\n}\n```"
 					}
 				},
 				{
@@ -105,14 +110,19 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"admin@tenant1.com\",\n  \"password\": \"password123\",\n  \"tenantId\": \"{{tenantId}}\"\n}"
+							"raw": "{\n  \"email\": \"admin@acme.com\",\n  \"password\": \"password123\",\n  \"tenantId\": \"{{tenantId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{baseUrl}}/v1/auth/login",
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "auth", "login"]
 						},
-						"description": "Login with tenant selection (for multi-tenant users). Use after receiving tenant list from initial login."
+						"description": "Login with tenant selection (for multi-tenant users). Use after receiving tenant list from initial login.\n\n**Example Request:**\n```json\n{\n  \"email\": \"admin@acme.com\",\n  \"password\": \"password123\",\n  \"tenantId\": \"tenant-123\"\n}\n```\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"user\": {\n      \"id\": \"123e4567-e89b-12d3-a456-426614174000\",\n      \"email\": \"admin@acme.com\",\n      \"role\": \"admin\",\n      \"tenantId\": \"tenant-123\"\n    }\n  }\n}\n```"
 					}
 				}
 			]
@@ -138,7 +148,7 @@
 								}
 							]
 						},
-						"description": "Get all shipments for the authenticated tenant. Admin sees all shipments, Driver sees only assigned shipments. Optional status filter available."
+						"description": "Get all shipments for the authenticated tenant. Admin sees all shipments, Driver sees only assigned shipments. Optional status filter available.\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"shipment-123\",\n      \"pickupAddress\": \"123 Main St, New York, NY 10001\",\n      \"deliveryAddress\": \"456 Oak Ave, Brooklyn, NY 11201\",\n      \"customerName\": \"John Doe\",\n      \"customerPhone\": \"+1234567890\",\n      \"status\": \"CREATED\",\n      \"driverId\": null,\n      \"pendingApproval\": false,\n      \"createdAt\": \"2024-01-15T10:00:00Z\",\n      \"updatedAt\": \"2024-01-15T10:00:00Z\"\n    },\n    {\n      \"id\": \"shipment-456\",\n      \"pickupAddress\": \"789 Broadway, Manhattan, NY 10003\",\n      \"deliveryAddress\": \"321 Park Ave, Queens, NY 11101\",\n      \"customerName\": \"Jane Smith\",\n      \"customerPhone\": \"+1987654321\",\n      \"status\": \"IN_TRANSIT\",\n      \"driverId\": \"driver-789\",\n      \"pendingApproval\": false,\n      \"createdAt\": \"2024-01-15T09:00:00Z\",\n      \"updatedAt\": \"2024-01-15T11:30:00Z\"\n    }\n  ]\n}\n```"
 					}
 				},
 				{
@@ -151,7 +161,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "shipments", "{{shipmentId}}"]
 						},
-						"description": "Get detailed information about a specific shipment. Admin can view any shipment, Driver can only view assigned shipments."
+						"description": "Get detailed information about a specific shipment. Admin can view any shipment, Driver can only view assigned shipments.\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"shipment-123\",\n    \"pickupAddress\": \"123 Main St, New York, NY 10001\",\n    \"deliveryAddress\": \"456 Oak Ave, Brooklyn, NY 11201\",\n    \"customerName\": \"John Doe\",\n    \"customerPhone\": \"+1234567890\",\n    \"status\": \"APPROVED\",\n    \"driverId\": \"driver-789\",\n    \"pendingApproval\": false,\n    \"assignedAt\": \"2024-01-15T10:30:00Z\",\n    \"createdAt\": \"2024-01-15T10:00:00Z\",\n    \"updatedAt\": \"2024-01-15T10:35:00Z\"\n  }\n}\n```"
 					}
 				},
 				{
@@ -186,14 +196,19 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"pickupAddress\": \"123 Main St, New York, NY 10001\",\n  \"deliveryAddress\": \"456 Oak Ave, Brooklyn, NY 11201\",\n  \"customerName\": \"John Doe\",\n  \"customerPhone\": \"+1234567890\"\n}"
+							"raw": "{\n  \"pickupAddress\": \"123 Main St, New York, NY 10001\",\n  \"deliveryAddress\": \"456 Oak Ave, Brooklyn, NY 11201\",\n  \"customerName\": \"John Doe\",\n  \"customerPhone\": \"+1234567890\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{baseUrl}}/v1/shipments",
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "shipments"]
 						},
-						"description": "Create a new shipment. Admin only. Idempotency-Key header ensures duplicate requests return the same response."
+						"description": "Create a new shipment. Admin only. Idempotency-Key header ensures duplicate requests return the same response.\n\n**Example Request:**\n```json\n{\n  \"pickupAddress\": \"123 Main St, New York, NY 10001\",\n  \"deliveryAddress\": \"456 Oak Ave, Brooklyn, NY 11201\",\n  \"customerName\": \"John Doe\",\n  \"customerPhone\": \"+1234567890\"\n}\n```\n\n**Example Response (201):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"shipment-123\",\n    \"pickupAddress\": \"123 Main St, New York, NY 10001\",\n    \"deliveryAddress\": \"456 Oak Ave, Brooklyn, NY 11201\",\n    \"customerName\": \"John Doe\",\n    \"customerPhone\": \"+1234567890\",\n    \"status\": \"CREATED\",\n    \"driverId\": null,\n    \"pendingApproval\": false,\n    \"createdAt\": \"2024-01-15T10:00:00Z\",\n    \"updatedAt\": \"2024-01-15T10:00:00Z\"\n  }\n}\n```"
 					}
 				},
 				{
@@ -212,14 +227,19 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"driverId\": \"{{driverId}}\"\n}"
+							"raw": "{\n  \"driverId\": \"{{driverId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{baseUrl}}/v1/shipments/{{shipmentId}}/assign-driver",
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "shipments", "{{shipmentId}}", "assign-driver"]
 						},
-						"description": "Assign a driver to a shipment. Admin only. Changes status from CREATED to ASSIGNED and sets pendingApproval to true."
+						"description": "Assign a driver to a shipment. Admin only. Changes status from CREATED to ASSIGNED and sets pendingApproval to true.\n\n**Example Request:**\n```json\n{\n  \"driverId\": \"driver-789\"\n}\n```\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"shipment-123\",\n    \"pickupAddress\": \"123 Main St, New York, NY 10001\",\n    \"deliveryAddress\": \"456 Oak Ave, Brooklyn, NY 11201\",\n    \"customerName\": \"John Doe\",\n    \"customerPhone\": \"+1234567890\",\n    \"status\": \"ASSIGNED\",\n    \"driverId\": \"driver-789\",\n    \"pendingApproval\": true,\n    \"assignedAt\": \"2024-01-15T10:30:00Z\",\n    \"createdAt\": \"2024-01-15T10:00:00Z\",\n    \"updatedAt\": \"2024-01-15T10:30:00Z\"\n  }\n}\n```"
 					}
 				},
 				{
@@ -237,7 +257,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "shipments", "{{shipmentId}}", "approve"]
 						},
-						"description": "Driver approves shipment assignment. Changes status from ASSIGNED to APPROVED and starts route simulation Phase 1 (TO_PICKUP). Driver only."
+						"description": "Driver approves shipment assignment. Changes status from ASSIGNED to APPROVED and starts route simulation Phase 1 (TO_PICKUP). Driver only.\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"shipment-123\",\n    \"pickupAddress\": \"123 Main St, New York, NY 10001\",\n    \"deliveryAddress\": \"456 Oak Ave, Brooklyn, NY 11201\",\n    \"customerName\": \"John Doe\",\n    \"customerPhone\": \"+1234567890\",\n    \"status\": \"APPROVED\",\n    \"driverId\": \"driver-789\",\n    \"pendingApproval\": false,\n    \"assignedAt\": \"2024-01-15T10:30:00Z\",\n    \"createdAt\": \"2024-01-15T10:00:00Z\",\n    \"updatedAt\": \"2024-01-15T10:35:00Z\"\n  }\n}\n```"
 					}
 				},
 				{
@@ -255,7 +275,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "shipments", "{{shipmentId}}", "reject"]
 						},
-						"description": "Driver rejects shipment assignment. Changes status from ASSIGNED back to CREATED and removes driver assignment. Driver only."
+						"description": "Driver rejects shipment assignment. Changes status from ASSIGNED back to CREATED and removes driver assignment. Driver only.\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"shipment-123\",\n    \"pickupAddress\": \"123 Main St, New York, NY 10001\",\n    \"deliveryAddress\": \"456 Oak Ave, Brooklyn, NY 11201\",\n    \"customerName\": \"John Doe\",\n    \"customerPhone\": \"+1234567890\",\n    \"status\": \"CREATED\",\n    \"driverId\": null,\n    \"pendingApproval\": false,\n    \"createdAt\": \"2024-01-15T10:00:00Z\",\n    \"updatedAt\": \"2024-01-15T10:40:00Z\"\n  }\n}\n```"
 					}
 				},
 				{
@@ -274,14 +294,19 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"status\": \"IN_TRANSIT\"\n}"
+							"raw": "{\n  \"status\": \"IN_TRANSIT\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{baseUrl}}/v1/shipments/{{shipmentId}}/status",
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "shipments", "{{shipmentId}}", "status"]
 						},
-						"description": "Update shipment status to IN_TRANSIT. Valid transition: APPROVED → IN_TRANSIT. Triggers route simulation Phase 2 (TO_DELIVERY). Admin or Driver."
+						"description": "Update shipment status to IN_TRANSIT. Valid transition: APPROVED → IN_TRANSIT. Triggers route simulation Phase 2 (TO_DELIVERY). Admin or Driver.\n\n**Example Request:**\n```json\n{\n  \"status\": \"IN_TRANSIT\"\n}\n```\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"shipment-123\",\n    \"pickupAddress\": \"123 Main St, New York, NY 10001\",\n    \"deliveryAddress\": \"456 Oak Ave, Brooklyn, NY 11201\",\n    \"customerName\": \"John Doe\",\n    \"customerPhone\": \"+1234567890\",\n    \"status\": \"IN_TRANSIT\",\n    \"driverId\": \"driver-789\",\n    \"pendingApproval\": false,\n    \"assignedAt\": \"2024-01-15T10:30:00Z\",\n    \"createdAt\": \"2024-01-15T10:00:00Z\",\n    \"updatedAt\": \"2024-01-15T11:00:00Z\"\n  }\n}\n```"
 					}
 				},
 				{
@@ -300,14 +325,19 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"status\": \"DELIVERED\"\n}"
+							"raw": "{\n  \"status\": \"DELIVERED\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{baseUrl}}/v1/shipments/{{shipmentId}}/status",
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "shipments", "{{shipmentId}}", "status"]
 						},
-						"description": "Update shipment status to DELIVERED. Valid transition: IN_TRANSIT → DELIVERED. Admin or Driver."
+						"description": "Update shipment status to DELIVERED. Valid transition: IN_TRANSIT → DELIVERED. Admin or Driver.\n\n**Example Request:**\n```json\n{\n  \"status\": \"DELIVERED\"\n}\n```\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"shipment-123\",\n    \"pickupAddress\": \"123 Main St, New York, NY 10001\",\n    \"deliveryAddress\": \"456 Oak Ave, Brooklyn, NY 11201\",\n    \"customerName\": \"John Doe\",\n    \"customerPhone\": \"+1234567890\",\n    \"status\": \"DELIVERED\",\n    \"driverId\": \"driver-789\",\n    \"pendingApproval\": false,\n    \"assignedAt\": \"2024-01-15T10:30:00Z\",\n    \"createdAt\": \"2024-01-15T10:00:00Z\",\n    \"updatedAt\": \"2024-01-15T12:00:00Z\"\n  }\n}\n```"
 					}
 				},
 				{
@@ -325,7 +355,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "shipments", "{{shipmentId}}", "cancel-by-customer"]
 						},
-						"description": "Customer cancels a shipment. Changes status to CANCEL_BY_CUSTOMER. Only allowed before IN_TRANSIT. Customer only."
+						"description": "Customer cancels a shipment. Changes status to CANCEL_BY_CUSTOMER. Only allowed before IN_TRANSIT. Customer only.\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"shipment-123\",\n    \"pickupAddress\": \"123 Main St, New York, NY 10001\",\n    \"deliveryAddress\": \"456 Oak Ave, Brooklyn, NY 11201\",\n    \"customerName\": \"John Doe\",\n    \"customerPhone\": \"+1234567890\",\n    \"status\": \"CANCEL_BY_CUSTOMER\",\n    \"driverId\": null,\n    \"pendingApproval\": false,\n    \"createdAt\": \"2024-01-15T10:00:00Z\",\n    \"updatedAt\": \"2024-01-15T10:45:00Z\"\n  }\n}\n```"
 					}
 				},
 				{
@@ -343,7 +373,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "shipments", "{{shipmentId}}", "cancel-by-driver"]
 						},
-						"description": "Driver cancels a shipment. Changes status to CANCEL_BY_DRIVER. Only allowed before IN_TRANSIT. Driver only (must be assigned driver)."
+						"description": "Driver cancels a shipment. Changes status to CANCEL_BY_DRIVER. Only allowed before IN_TRANSIT. Driver only (must be assigned driver).\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"shipment-123\",\n    \"pickupAddress\": \"123 Main St, New York, NY 10001\",\n    \"deliveryAddress\": \"456 Oak Ave, Brooklyn, NY 11201\",\n    \"customerName\": \"John Doe\",\n    \"customerPhone\": \"+1234567890\",\n    \"status\": \"CANCEL_BY_DRIVER\",\n    \"driverId\": null,\n    \"pendingApproval\": false,\n    \"createdAt\": \"2024-01-15T10:00:00Z\",\n    \"updatedAt\": \"2024-01-15T10:50:00Z\"\n  }\n}\n```"
 					}
 				},
 				{
@@ -356,7 +386,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "shipments", "{{shipmentId}}", "route"]
 						},
-						"description": "Get real-time route simulation data for a shipment. Returns route points, current position, and phase (TO_PICKUP or TO_DELIVERY). Admin or Driver."
+						"description": "Get real-time route simulation data for a shipment. Returns route points, current position, and phase (TO_PICKUP or TO_DELIVERY). Admin or Driver.\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"shipmentId\": \"shipment-123\",\n    \"driverId\": \"driver-789\",\n    \"phase\": \"TO_PICKUP\",\n    \"routePoints\": [\n      {\n        \"lat\": 40.7128,\n        \"lng\": -74.0060\n      },\n      {\n        \"lat\": 40.7130,\n        \"lng\": -74.0058\n      },\n      {\n        \"lat\": 40.7132,\n        \"lng\": -74.0056\n      }\n    ],\n    \"currentStep\": 15,\n    \"totalSteps\": 200,\n    \"pickupPoint\": {\n      \"lat\": 40.7580,\n      \"lng\": -73.9855\n    },\n    \"deliveryPoint\": {\n      \"lat\": 40.6782,\n      \"lng\": -73.9442\n    }\n  }\n}\n```"
 					}
 				}
 			]
@@ -391,7 +421,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "drivers"]
 						},
-						"description": "Get all active drivers for the authenticated tenant with their current locations. Admin or Driver."
+						"description": "Get all active drivers for the authenticated tenant with their current locations. Admin or Driver.\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": [\n    {\n      \"id\": \"driver-789\",\n      \"name\": \"John Driver\",\n      \"phone\": \"+1234567890\",\n      \"licenseNumber\": \"DL123456\",\n      \"vehicleType\": \"TRUCK\",\n      \"isActive\": true,\n      \"location\": {\n        \"latitude\": 40.7128,\n        \"longitude\": -74.0060,\n        \"timestamp\": \"2024-01-15T11:00:00Z\",\n        \"source\": \"REST\"\n      },\n      \"createdAt\": \"2024-01-01T00:00:00Z\",\n      \"updatedAt\": \"2024-01-15T11:00:00Z\"\n    },\n    {\n      \"id\": \"driver-456\",\n      \"name\": \"Jane Driver\",\n      \"phone\": \"+1987654321\",\n      \"licenseNumber\": \"DL789012\",\n      \"vehicleType\": \"VAN\",\n      \"isActive\": true,\n      \"location\": null,\n      \"createdAt\": \"2024-01-01T00:00:00Z\",\n      \"updatedAt\": \"2024-01-15T10:00:00Z\"\n    }\n  ]\n}\n```"
 					}
 				},
 				{
@@ -404,7 +434,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "drivers", "{{driverId}}"]
 						},
-						"description": "Get detailed information about a specific driver including current location. Admin or Driver (drivers can only view their own details)."
+						"description": "Get detailed information about a specific driver including current location. Admin or Driver (drivers can only view their own details).\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"driver-789\",\n    \"name\": \"John Driver\",\n    \"phone\": \"+1234567890\",\n    \"licenseNumber\": \"DL123456\",\n    \"vehicleType\": \"TRUCK\",\n    \"isActive\": true,\n    \"location\": {\n      \"latitude\": 40.7128,\n      \"longitude\": -74.0060,\n      \"timestamp\": \"2024-01-15T11:00:00Z\",\n      \"source\": \"SIMULATED\"\n    },\n    \"createdAt\": \"2024-01-01T00:00:00Z\",\n    \"updatedAt\": \"2024-01-15T11:00:00Z\"\n  }\n}\n```"
 					}
 				},
 				{
@@ -419,14 +449,19 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"latitude\": 40.7128,\n  \"longitude\": -74.0060,\n  \"timestamp\": \"{{$isoTimestamp}}\"\n}"
+							"raw": "{\n  \"latitude\": 40.7128,\n  \"longitude\": -74.0060,\n  \"timestamp\": \"{{$isoTimestamp}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{baseUrl}}/v1/drivers/{{driverId}}/location",
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "drivers", "{{driverId}}", "location"]
 						},
-						"description": "Update driver location via REST API. Location is stored in Redis and broadcast via Socket.IO. Admin or Driver (drivers can only update their own location). Alternative: Use MQTT topic tenant/{tenantId}/driver/{driverId}/location"
+						"description": "Update driver location via REST API. Location is stored in Redis and broadcast via Socket.IO. Admin or Driver (drivers can only update their own location). Alternative: Use MQTT topic tenant/{tenantId}/driver/{driverId}/location\n\n**Example Request:**\n```json\n{\n  \"latitude\": 40.7128,\n  \"longitude\": -74.0060,\n  \"timestamp\": \"2024-01-15T11:00:00Z\"\n}\n```\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"message\": \"Location updated successfully\"\n}\n```\n\n**Note:** If route simulation is active, real GPS updates will be blocked to prevent interference with simulated movement."
 					}
 				}
 			]
@@ -444,7 +479,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "dashboard", "summary"]
 						},
-						"description": "Get real-time operational dashboard summary. Uses CQRS read model for performance. Returns totalShipments, activeShipments, deliveredToday, driversOnline, and lastUpdated. All authenticated users."
+						"description": "Get real-time operational dashboard summary. Uses CQRS read model for performance. Returns totalShipments, activeShipments, deliveredToday, driversOnline, and lastUpdated. All authenticated users.\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"totalShipments\": 150,\n    \"activeShipments\": 25,\n    \"deliveredToday\": 12,\n    \"driversOnline\": 8,\n    \"lastUpdated\": \"2024-01-15T11:00:00Z\"\n  }\n}\n```"
 					}
 				}
 			]
@@ -493,7 +528,7 @@
 								}
 							]
 						},
-						"description": "Get paginated list of notifications for the authenticated user. Returns notifications array and total count. Ordered by creation date (newest first). All authenticated users."
+						"description": "Get paginated list of notifications for the authenticated user. Returns notifications array and total count. Ordered by creation date (newest first). All authenticated users.\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"notifications\": [\n      {\n        \"id\": \"notif-123\",\n        \"userId\": \"user-456\",\n        \"type\": \"SHIPMENT_ASSIGNED\",\n        \"title\": \"New Shipment Assignment\",\n        \"message\": \"You have been assigned to shipment shipment-123\",\n        \"status\": \"UNREAD\",\n        \"metadata\": {\n          \"shipmentId\": \"shipment-123\",\n          \"driverId\": \"driver-789\"\n        },\n        \"createdAt\": \"2024-01-15T10:30:00Z\",\n        \"readAt\": null\n      },\n      {\n        \"id\": \"notif-456\",\n        \"userId\": \"user-456\",\n        \"type\": \"SHIPMENT_APPROVED\",\n        \"title\": \"Shipment Approved\",\n        \"message\": \"Driver approved shipment shipment-123\",\n        \"status\": \"READ\",\n        \"metadata\": {\n          \"shipmentId\": \"shipment-123\",\n          \"driverId\": \"driver-789\"\n        },\n        \"createdAt\": \"2024-01-15T10:35:00Z\",\n        \"readAt\": \"2024-01-15T10:40:00Z\"\n      }\n    ],\n    \"total\": 25,\n    \"limit\": 50,\n    \"offset\": 0\n  }\n}\n```"
 					}
 				},
 				{
@@ -506,7 +541,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "notifications", "unread-count"]
 						},
-						"description": "Get the count of unread notifications. Useful for displaying a badge or indicator. All authenticated users."
+						"description": "Get the count of unread notifications. Useful for displaying a badge or indicator. All authenticated users.\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"unreadCount\": 5\n  }\n}\n```"
 					}
 				},
 				{
@@ -524,7 +559,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "notifications", "{{notificationId}}", "read"]
 						},
-						"description": "Mark a specific notification as read. Returns the updated notification with status READ. All authenticated users (can only mark own notifications)."
+						"description": "Mark a specific notification as read. Returns the updated notification with status READ. All authenticated users (can only mark own notifications).\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"notif-123\",\n    \"userId\": \"user-456\",\n    \"type\": \"SHIPMENT_ASSIGNED\",\n    \"title\": \"New Shipment Assignment\",\n    \"message\": \"You have been assigned to shipment shipment-123\",\n    \"status\": \"READ\",\n    \"metadata\": {\n      \"shipmentId\": \"shipment-123\",\n      \"driverId\": \"driver-789\"\n    },\n    \"createdAt\": \"2024-01-15T10:30:00Z\",\n    \"readAt\": \"2024-01-15T11:00:00Z\"\n  }\n}\n```"
 					}
 				},
 				{
@@ -542,7 +577,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["v1", "notifications", "read-all"]
 						},
-						"description": "Mark all unread notifications for the authenticated user as read. All authenticated users."
+						"description": "Mark all unread notifications for the authenticated user as read. All authenticated users.\n\n**Example Response (200):**\n```json\n{\n  \"success\": true,\n  \"message\": \"All notifications marked as read\",\n  \"data\": {\n    \"updatedCount\": 5\n  }\n}\n```"
 					}
 				}
 			]
@@ -560,7 +595,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["health"]
 						},
-						"description": "Check system health status (database, Redis, RabbitMQ). No authentication required."
+						"description": "Check system health status (database, Redis, RabbitMQ). No authentication required.\n\n**Example Response (200):**\n```json\n{\n  \"status\": \"healthy\",\n  \"services\": {\n    \"database\": \"connected\",\n    \"redis\": \"connected\",\n    \"rabbitmq\": \"connected\"\n  },\n  \"timestamp\": \"2024-01-15T11:00:00Z\"\n}\n```\n\n**Example Response (503 - Unhealthy):**\n```json\n{\n  \"status\": \"unhealthy\",\n  \"services\": {\n    \"database\": \"connected\",\n    \"redis\": \"disconnected\",\n    \"rabbitmq\": \"connected\"\n  },\n  \"timestamp\": \"2024-01-15T11:00:00Z\"\n}\n```"
 					}
 				}
 			]

@@ -65,18 +65,79 @@ export const updateDriverLocationHandler = (fastify: FastifyInstance) =>
 
       // If user is a driver, verify they can only update their own location
       if (user.role === UserRole.DRIVER) {
-        const driverRepository = AppDataSource.getRepository(Driver);
-        const driver = await driverRepository.findOne({
-          where: { userId: user.userId, tenantId, isActive: true },
-        });
+        try {
+          const driverRepository = AppDataSource.getRepository(Driver);
+          // Add timeout to prevent hanging on database queries
+          const driver = await Promise.race([
+            driverRepository.findOne({
+              where: { userId: user.userId, tenantId, isActive: true },
+            }),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Database query timeout')), 5000)
+            ),
+          ]) as Driver | null;
 
-        if (!driver || driver.id !== request.params.id) {
-          throw new AppError(
-            ErrorCode.UNAUTHORIZED,
-            "You can only update your own location",
-            403
-          );
+          if (!driver || driver.id !== request.params.id) {
+            throw new AppError(
+              ErrorCode.UNAUTHORIZED,
+              "You can only update your own location",
+              403
+            );
+          }
+        } catch (error) {
+          // If database query fails or times out, still allow location update
+          // Don't block location updates due to database issues
+          // For security, we'll still check if it's a real authorization error
+          if (error instanceof AppError && error.statusCode === 403) {
+            throw error;
+          }
+          // Otherwise, continue with location update (database issue, not auth issue)
         }
+      }
+
+      // Check if route simulation is active before processing location
+      // If simulation is active, skip real GPS updates to prevent interference
+      // Add timeout to prevent hanging on Redis operations
+      let simulationData = null;
+      let existingLocation = null;
+      
+      try {
+        const simulationKey = `simulation:${tenantId}:${request.params.id}`;
+        simulationData = await Promise.race([
+          fastify.redis.get(simulationKey),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Redis timeout')), 2000)
+          ),
+        ]) as string | null;
+        
+        if (simulationData) {
+          // Route simulation is active - check if location is simulated
+          const locationKey = `driver:${tenantId}:${request.params.id}:location`;
+          existingLocation = await Promise.race([
+            fastify.redis.get(locationKey),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Redis timeout')), 2000)
+            ),
+          ]) as string | null;
+          
+          if (existingLocation) {
+            try {
+              const existing = JSON.parse(existingLocation);
+              // If existing location is from simulation, skip real GPS update
+              // This prevents real GPS from overwriting simulated location
+              if (existing.source === 'SIMULATED') {
+                // Don't process real GPS location during active simulation
+                // Don't emit Socket.IO event either - simulation will handle updates
+                return sendSuccess(reply, null, 200, "Location update skipped - route simulation active");
+              }
+            } catch (parseError) {
+              // JSON parse failed - continue with location update
+            }
+          }
+        }
+      } catch (error) {
+        // Redis check failed or timed out - continue with location update
+        // Don't block location updates due to Redis issues
       }
 
       await locationProcessor.processLocation(
@@ -90,8 +151,8 @@ export const updateDriverLocationHandler = (fastify: FastifyInstance) =>
         "REST"
       );
 
-      // Emit Socket.IO event
-      if (fastify.io) {
+      // Emit Socket.IO event only if simulation is not active
+      if (fastify.io && !simulationData) {
         fastify.io.to(`tenant:${tenantId}`).emit("driver-location-update", {
           driverId: request.params.id,
           location: {

@@ -235,38 +235,24 @@ export const updateStatusHandler = (fastify: FastifyInstance) =>
             fastify.io || undefined
           );
 
-          // Verify Phase 1 completed (driver reached pickup)
-          const phase1CompleteKey = `phase1:complete:${tenantId}:${shipment.id}`;
-          const phase1Data = await fastify.redis.get(phase1CompleteKey);
-
-          // Stop any existing simulation (Phase 1 should have completed)
+          // Phase 1 has been removed - Phase 2 always starts from pickup
+          // Stop any existing simulation
           await routeSimulation.stopSimulation(shipment.driverId, tenantId);
 
-          // If Phase 1 didn't complete, use pickup coordinates directly
-          // This ensures Phase 2 always starts from pickup location
+          // Geocode pickup address to get coordinates for Phase 2 start
           let pickupCoordinates = null;
-          if (phase1Data) {
-            const phase1Info = JSON.parse(phase1Data);
-            pickupCoordinates = phase1Info.pickupPoint;
-          }
-
-          // If we don't have Phase 1 completion data, geocode pickup address
-          // This handles cases where Phase 1 didn't run or was interrupted
-          if (!pickupCoordinates) {
-            // Geocode pickup address to get coordinates
-            const encodedAddress = encodeURIComponent(shipment.pickupAddress);
-            const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
-            const geocodeResponse = await fetch(geocodeUrl, {
-              headers: { "User-Agent": "OpsCore/1.0" },
-            });
-            if (geocodeResponse.ok) {
-              const geocodeData = await geocodeResponse.json();
-              if (geocodeData && geocodeData.length > 0) {
-                pickupCoordinates = {
-                  lat: parseFloat(geocodeData[0].lat),
-                  lng: parseFloat(geocodeData[0].lon),
-                };
-              }
+          const encodedAddress = encodeURIComponent(shipment.pickupAddress);
+          const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`;
+          const geocodeResponse = await fetch(geocodeUrl, {
+            headers: { "User-Agent": "OpsCore/1.0" },
+          });
+          if (geocodeResponse.ok) {
+            const geocodeData = await geocodeResponse.json();
+            if (geocodeData && geocodeData.length > 0) {
+              pickupCoordinates = {
+                lat: parseFloat(geocodeData[0].lat),
+                lng: parseFloat(geocodeData[0].lon),
+              };
             }
           }
 
@@ -301,6 +287,10 @@ export const updateStatusHandler = (fastify: FastifyInstance) =>
             }
           }
 
+          fastify.log.info(
+            `🚀 Starting Phase 2 route simulation for shipment ${shipment.id}, driver ${shipment.driverId}`
+          );
+
           await routeSimulation.startSimulation(
             shipment.id,
             shipment.driverId,
@@ -309,11 +299,15 @@ export const updateStatusHandler = (fastify: FastifyInstance) =>
             shipment.deliveryAddress,
             "TO_DELIVERY" // Phase 2: Pickup → Delivery
           );
+
+          fastify.log.info(
+            `✅ Phase 2 route simulation started successfully for shipment ${shipment.id}`
+          );
         } catch (error) {
           // Log error but don't fail the status update
-          fastify.log.warn(
+          fastify.log.error(
             { err: error },
-            "Failed to start route simulation (Phase 2: TO_DELIVERY)"
+            "❌ Failed to start route simulation (Phase 2: TO_DELIVERY)"
           );
         }
       }
@@ -506,38 +500,9 @@ export const approveAssignmentHandler = (fastify: FastifyInstance) =>
         });
       }
 
-      // CRITICAL: Check location BEFORE approving to prevent approval if location is invalid
-      // This prevents the shipment from being approved and then failing location check
-      const locationKey = `driver:${tenantId}:${driverId}:location`;
-      const driverLocation = await fastify.redis.get(locationKey);
-
-      if (!driverLocation) {
-        // Driver hasn't shared location - return error BEFORE approval
-        return reply.status(400).send({
-          success: false,
-          error_code: "LOCATION_REQUIRED",
-          message:
-            "Please share your location before approving the shipment. Go to the 'Share Location' page and start sharing your GPS location.",
-        });
-      }
-
-      const locationData = JSON.parse(driverLocation);
-      const locationTime = new Date(locationData.timestamp);
-      const now = new Date();
-      const locationAge = now.getTime() - locationTime.getTime();
-
-      // Location must be less than 10 minutes old to be considered valid
-      if (locationAge > 10 * 60 * 1000) {
-        // Location is too old - return error BEFORE approval
-        return reply.status(400).send({
-          success: false,
-          error_code: "LOCATION_STALE",
-          message:
-            "Your location is too old. Please refresh your location sharing and try again.",
-        });
-      }
-
-      // Location is valid - proceed with approval
+      // Phase 1 has been removed - location sharing is no longer required for approval
+      // Route simulation will only start when status changes to IN_TRANSIT (Phase 2)
+      // Proceed with approval
       const shipment = await shipmentService.approveAssignment(
         request.params.id,
         tenantId,
@@ -559,39 +524,8 @@ export const approveAssignmentHandler = (fastify: FastifyInstance) =>
       );
       approvalTimeoutService.cancelAutoReject(shipment.id);
 
-      // Start route simulation Phase 1: Driver's current location → Pickup address
-      // This happens when driver approves the shipment assignment
-      // Location is already validated above, so we can proceed with simulation
-      if (shipment.driverId) {
-        try {
-          const routeSimulation = new RouteSimulationService(
-            fastify.redis,
-            fastify.io || undefined
-          );
-          // Check if simulation is already running to avoid duplicates
-          const hasActiveSimulation = routeSimulation.hasActiveSimulation(
-            shipment.driverId,
-            tenantId
-          );
-          if (!hasActiveSimulation) {
-            await routeSimulation.startSimulation(
-              shipment.id,
-              shipment.driverId,
-              tenantId,
-              shipment.pickupAddress,
-              shipment.deliveryAddress,
-              "TO_PICKUP" // Phase 1: Driver location → Pickup
-            );
-          }
-        } catch (error) {
-          // Log error but don't fail the approval (location was already validated)
-          // Route simulation failure shouldn't prevent approval
-          fastify.log.warn(
-            { err: error },
-            "Failed to start route simulation (Phase 1: TO_PICKUP)"
-          );
-        }
-      }
+      // Phase 1 has been removed - no route simulation on approval
+      // Route simulation will only start when status changes to IN_TRANSIT (Phase 2)
 
       // Use updated shipment if available
       const shipmentToEmit = updatedShipment || shipment;
@@ -709,12 +643,35 @@ export const getShipmentRouteHandler = (fastify: FastifyInstance) =>
       const shipmentService = new ShipmentService();
 
       // Get shipment to verify it exists and get driverId
-      const shipment = await shipmentService.getShipmentById(
-        request.params.id,
-        tenantId,
-        UserRole.OPS_ADMIN, // Admin can view any route
-        undefined
-      );
+      // Add timeout to database query (increased to 10 seconds for slow queries)
+      let shipment;
+      try {
+        shipment = await Promise.race([
+          shipmentService.getShipmentById(
+            request.params.id,
+            tenantId,
+            UserRole.OPS_ADMIN, // Admin can view any route
+            undefined
+          ),
+          new Promise<any>((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Database query timed out")),
+              10000
+            )
+          ),
+        ]);
+      } catch (error) {
+        // Log the error for debugging
+        fastify.log.warn(
+          { err: error },
+          `⚠️ Timeout fetching shipment ${request.params.id}`
+        );
+        return reply.status(500).send({
+          success: false,
+          error_code: "TIMEOUT",
+          message: "Request timed out while fetching shipment data",
+        });
+      }
 
       if (!shipment) {
         return reply.status(404).send({
@@ -729,16 +686,75 @@ export const getShipmentRouteHandler = (fastify: FastifyInstance) =>
         return sendSuccess(reply, null);
       }
 
-      // Get route data
+      // Get route data with timeout
       const routeSimulation = new RouteSimulationService(
         fastify.redis,
         fastify.io || undefined
       );
 
-      const routeData = await routeSimulation.getRouteDataByShipment(
-        request.params.id,
-        tenantId
-      );
+      // CRITICAL: If we have driverId, try direct lookup first (faster and more reliable)
+      let routeData = null;
+      if (shipment.driverId) {
+        try {
+          // Try direct lookup by driverId first
+          const directRouteData = await Promise.race([
+            routeSimulation.getRouteData(shipment.driverId, tenantId),
+            new Promise<any>((_, reject) =>
+              setTimeout(
+                () => reject(new Error("Route data fetch timed out")),
+                5000
+              )
+            ),
+          ]);
+
+          if (directRouteData && directRouteData.shipmentId === shipment.id) {
+            // Found route data - return it with driverId
+            routeData = {
+              ...directRouteData,
+              driverId: shipment.driverId,
+            };
+            fastify.log.info(
+              `✅ Route data found via direct lookup for shipment ${shipment.id}, driver ${shipment.driverId}`
+            );
+          }
+        } catch (error) {
+          // Direct lookup failed, try by shipmentId
+          fastify.log.warn(
+            `⚠️ Direct route lookup failed for driver ${shipment.driverId}, trying by shipmentId`
+          );
+        }
+      }
+
+      // If direct lookup didn't work, try by shipmentId
+      if (!routeData) {
+        try {
+          routeData = await Promise.race([
+            routeSimulation.getRouteDataByShipment(request.params.id, tenantId),
+            new Promise<any>((_, reject) =>
+              setTimeout(
+                () => reject(new Error("Route data fetch timed out")),
+                10000
+              )
+            ),
+          ]);
+          if (routeData) {
+            fastify.log.info(
+              `✅ Route data found via shipmentId lookup for shipment ${shipment.id}`
+            );
+          } else {
+            fastify.log.warn(
+              `⚠️ No route data found for shipment ${shipment.id} (status: ${shipment.status}, driverId: ${shipment.driverId})`
+            );
+          }
+        } catch (error) {
+          // If route data fetch times out, return null instead of error
+          // This allows the frontend to handle missing route data gracefully
+          fastify.log.warn(
+            `⚠️ Route data fetch timed out for shipment ${shipment.id}`
+          );
+          return sendSuccess(reply, null);
+        }
+      }
 
       return sendSuccess(reply, routeData);
     }

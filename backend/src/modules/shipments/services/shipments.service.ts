@@ -1,4 +1,4 @@
-import { DataSource } from "typeorm";
+import { DataSource, Not, In } from "typeorm";
 import { AppDataSource } from "../../../infra/db/data-source";
 import { Shipment, ShipmentStatus } from "../../../infra/db/entities/Shipment";
 import { ShipmentStatusHistory } from "../../../infra/db/entities/ShipmentStatusHistory";
@@ -134,6 +134,43 @@ export class ShipmentService {
           "Driver not found or inactive",
           404
         );
+      }
+
+      // Check if driver is already assigned to another active shipment
+      // A driver cannot be assigned to a new shipment if they are already assigned
+      // to another shipment where pendingApproval is false (approved and active)
+      const shipmentRepo = AppDataSource.getRepository(Shipment);
+      const existingShipment = await shipmentRepo.findOne({
+        where: {
+          driverId: assignDto.driverId,
+          tenantId,
+          status: Not(
+            In([
+              ShipmentStatus.DELIVERED,
+              ShipmentStatus.CANCEL_BY_DRIVER,
+              ShipmentStatus.CANCEL_BY_CUSTOMER,
+            ])
+          ),
+        },
+      });
+
+      if (existingShipment && existingShipment.id !== shipmentId) {
+        // Check if the existing assignment is approved (pendingApproval is false)
+        if (existingShipment.pendingApproval === false) {
+          throw new AppError(
+            ErrorCode.INVALID_SHIPMENT_STATE,
+            `Driver is already assigned to another active shipment. Cannot assign the same driver to multiple shipments.`,
+            400
+          );
+        }
+        // Also prevent if driver is waiting for approval on another shipment
+        if (existingShipment.pendingApproval === true) {
+          throw new AppError(
+            ErrorCode.INVALID_SHIPMENT_STATE,
+            `Driver is already assigned to another shipment and is waiting for approval. Please wait for the driver to approve or reject the current assignment.`,
+            400
+          );
+        }
       }
 
       // Store previous status to check if we're reassigning from cancelled

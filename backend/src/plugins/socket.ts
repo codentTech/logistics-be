@@ -12,13 +12,23 @@ declare module 'fastify' {
 }
 
 const socketPlugin: FastifyPluginAsync = async (fastify) => {
+  // CRITICAL: Socket.IO must be initialized after server is ready
+  // Use fastify.server which is available after app.listen() is called
+  // For now, we'll attach it to the HTTP server that Fastify creates
   const io = new SocketIOServer(fastify.server, {
     cors: {
       origin: true,
       credentials: true,
+      methods: ['GET', 'POST'],
     },
     path: '/socket.io',
+    transports: ['polling', 'websocket'], // Try polling first (more reliable), then upgrade to websocket
+    allowEIO3: true, // Allow Engine.IO v3 clients
+    pingTimeout: 60000,
+    pingInterval: 25000,
   });
+  
+  fastify.log.info('✅ Socket.IO server initialized on path /socket.io');
 
   // Use Redis adapter for multi-instance scaling (if Redis is available)
   let pubClient: Redis | null = null;
