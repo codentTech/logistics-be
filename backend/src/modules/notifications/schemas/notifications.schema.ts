@@ -47,7 +47,21 @@ Returns an object with:
           properties: {
             notifications: {
               type: 'array',
-              items: { type: 'object' },
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  userId: { type: 'string', format: 'uuid' },
+                  shipmentId: { type: ['string', 'null'], format: 'uuid' },
+                  type: { type: 'string' },
+                  title: { type: 'string' },
+                  message: { type: 'string' },
+                  status: { type: 'string' },
+                  metadata: { type: ['object', 'null'] },
+                  createdAt: { type: 'string', format: 'date-time' },
+                  updatedAt: { type: 'string', format: 'date-time' },
+                },
+              },
             },
             total: {
               type: 'number',

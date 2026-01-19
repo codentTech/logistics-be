@@ -1,6 +1,7 @@
 import { DashboardRepository } from '../repositories/dashboard.repository';
 import Redis from 'ioredis';
 import { UserRole } from '../../../infra/db/entities/User';
+import { Server as SocketIOServer } from 'socket.io';
 
 export class DashboardService {
   private dashboardRepository: DashboardRepository;
@@ -13,13 +14,15 @@ export class DashboardService {
     tenantId: string,
     redis: Redis,
     userRole?: UserRole,
-    driverId?: string
+    driverId?: string,
+    io?: SocketIOServer
   ) {
     const summary = await this.dashboardRepository.getSummary(
       tenantId,
       redis,
       userRole,
-      driverId
+      driverId,
+      io
     );
     return {
       tenantId: summary.tenantId,
@@ -31,8 +34,8 @@ export class DashboardService {
     };
   }
 
-  async refreshSummary(tenantId: string, redis: Redis) {
-    const summary = await this.dashboardRepository.refreshSummary(tenantId, redis);
+  async refreshSummary(tenantId: string, redis: Redis, io?: SocketIOServer) {
+    const summary = await this.dashboardRepository.refreshSummary(tenantId, redis, io);
     return {
       tenantId: summary.tenantId,
       totalShipments: summary.totalShipments,

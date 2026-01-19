@@ -4,6 +4,9 @@ import { Server as SocketIOServer } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import Redis from 'ioredis';
 import { redisConfig } from '../config';
+import { AppDataSource } from '../infra/db/data-source';
+import { Driver } from '../infra/db/entities/Driver';
+import { UserRole } from '../infra/db/entities/User';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -108,10 +111,11 @@ const socketPlugin: FastifyPluginAsync = async (fastify) => {
   });
 
   // Connection handler
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     const user = (socket as any).user;
     const tenantId = user.tenantId;
     const userId = user.userId;
+    const userRole = user.role;
 
     // Join tenant room automatically on connection
     socket.join(`tenant:${tenantId}`);
@@ -120,20 +124,36 @@ const socketPlugin: FastifyPluginAsync = async (fastify) => {
     if (userId) {
       socket.join(`user:${userId}`);
     }
-    
-    fastify.log.info(`Socket connected: ${socket.id} (tenant: ${tenantId}, user: ${userId})`);
+
+    // If user is a driver, join driver-specific room for online status tracking
+    if (userRole === UserRole.DRIVER && userId) {
+      try {
+        const driverRepository = AppDataSource.getRepository(Driver);
+        const driver = await driverRepository.findOne({
+          where: { userId, tenantId, isActive: true },
+        });
+
+        if (driver) {
+          const onlineRoom = `driver:online:${tenantId}:${driver.id}`;
+          socket.join(onlineRoom);
+          
+          // Store driverId and room on socket for disconnect handling
+          (socket as any).driverId = driver.id;
+          (socket as any).driverOnlineRoom = onlineRoom;
+        }
+      } catch (error) {
+        // If database query fails, continue with connection
+        // Driver online status will not be tracked, but connection will still work
+      }
+    }
 
     // Handle explicit join-tenant event (for reconnection scenarios)
     socket.on('join-tenant', (roomTenantId: string) => {
       if (roomTenantId && roomTenantId === tenantId) {
         socket.join(`tenant:${tenantId}`);
-        fastify.log.info(`Socket ${socket.id} joined tenant room: ${tenantId}`);
       }
     });
 
-    socket.on('disconnect', () => {
-      fastify.log.info(`Socket disconnected: ${socket.id}`);
-    });
   });
 
   fastify.decorate('io', io);

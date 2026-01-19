@@ -17,7 +17,7 @@ export const getAllDriversHandler = (fastify: FastifyInstance) =>
   asyncHandler(async (request: FastifyRequest, reply: FastifyReply) => {
     const driverService = new DriverService(fastify.redis);
     const tenantId = getTenantId(request);
-    const drivers = await driverService.getAllDrivers(tenantId);
+    const drivers = await driverService.getAllDrivers(tenantId, fastify.io);
     return sendSuccess(reply, drivers);
   });
 

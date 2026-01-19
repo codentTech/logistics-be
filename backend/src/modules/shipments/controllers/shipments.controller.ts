@@ -348,6 +348,23 @@ export const updateStatusHandler = (fastify: FastifyInstance) =>
           driverId: shipmentToEmit.driverId,
           pendingApproval: shipmentToEmit.pendingApproval,
         });
+
+        // Emit notification refresh events for IN_TRANSIT and DELIVERED
+        if (
+          request.body.status === ShipmentStatus.IN_TRANSIT ||
+          request.body.status === ShipmentStatus.DELIVERED
+        ) {
+          const userRepository = AppDataSource.getRepository(User);
+          const adminUsers = await userRepository.find({
+            where: { tenantId, role: UserRole.OPS_ADMIN, isActive: true },
+          });
+
+          for (const admin of adminUsers) {
+            fastify.io.to(`user:${admin.id}`).emit("notification-updated", {
+              shipmentId: shipmentToEmit.id,
+            });
+          }
+        }
       }
 
       return sendSuccess(reply, shipmentToEmit);
@@ -402,6 +419,33 @@ export const cancelByCustomerHandler = (fastify: FastifyInstance) =>
           driverId: shipmentToEmit.driverId,
           pendingApproval: shipmentToEmit.pendingApproval,
         });
+
+        // Emit notification refresh event to admins and driver (if assigned)
+        const userRepository = AppDataSource.getRepository(User);
+        const adminUsers = await userRepository.find({
+          where: { tenantId, role: UserRole.OPS_ADMIN, isActive: true },
+        });
+
+        for (const admin of adminUsers) {
+          fastify.io.to(`user:${admin.id}`).emit("notification-updated", {
+            shipmentId: shipmentToEmit.id,
+          });
+        }
+
+        // Notify driver if they were assigned
+        if (shipmentToEmit.driverId) {
+          const driverRepository = AppDataSource.getRepository(Driver);
+          const driver = await driverRepository.findOne({
+            where: { id: shipmentToEmit.driverId, tenantId },
+            relations: ["user"],
+          });
+
+          if (driver?.userId) {
+            fastify.io.to(`user:${driver.userId}`).emit("notification-updated", {
+              shipmentId: shipmentToEmit.id,
+            });
+          }
+        }
       }
 
       return sendSuccess(reply, shipmentToEmit);
@@ -467,6 +511,18 @@ export const cancelByDriverHandler = (fastify: FastifyInstance) =>
           driverId: shipmentToEmit.driverId,
           pendingApproval: shipmentToEmit.pendingApproval,
         });
+
+        // Emit notification refresh event to admins (notifications already created in service)
+        const userRepository = AppDataSource.getRepository(User);
+        const adminUsers = await userRepository.find({
+          where: { tenantId, role: UserRole.OPS_ADMIN, isActive: true },
+        });
+
+        for (const admin of adminUsers) {
+          fastify.io.to(`user:${admin.id}`).emit("notification-updated", {
+            shipmentId: shipmentToEmit.id,
+          });
+        }
       }
 
       return sendSuccess(reply, shipmentToEmit);

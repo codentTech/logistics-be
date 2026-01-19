@@ -214,12 +214,16 @@ export class ShipmentService {
 
       // Create notification for driver (outside transaction)
       if (driverWithUser?.userId) {
-        const notificationService = new NotificationService();
-        await notificationService.notifyDriverAssignment(
-          driverWithUser.userId,
-          updatedShipment.id,
-          updatedShipment
-        );
+        try {
+          const notificationService = new NotificationService();
+          await notificationService.notifyDriverAssignment(
+            driverWithUser.userId,
+            updatedShipment.id,
+            updatedShipment
+          );
+        } catch (error) {
+          // Don't fail the assignment if notification creation fails
+        }
       }
 
       // Publish event
@@ -337,6 +341,44 @@ export class ShipmentService {
       await queryRunner.manager.save(history);
 
       await queryRunner.commitTransaction();
+
+      // Create notifications based on status change (outside transaction)
+      const notificationService = new NotificationService();
+      const userRepository = AppDataSource.getRepository(User);
+
+      if (updateDto.status === ShipmentStatus.IN_TRANSIT) {
+        // Notify admins when shipment goes to IN_TRANSIT
+        const adminUsers = await userRepository.find({
+          where: { tenantId, role: UserRole.OPS_ADMIN, isActive: true },
+        });
+
+        for (const admin of adminUsers) {
+          await notificationService.createNotification(
+            admin.id,
+            NotificationType.SHIPMENT_IN_TRANSIT,
+            "Shipment In Transit",
+            `Shipment has started transit.`,
+            shipmentId,
+            { shipmentId, driverId: shipment.driverId }
+          );
+        }
+      } else if (updateDto.status === ShipmentStatus.DELIVERED) {
+        // Notify admins when shipment is delivered
+        const adminUsers = await userRepository.find({
+          where: { tenantId, role: UserRole.OPS_ADMIN, isActive: true },
+        });
+
+        for (const admin of adminUsers) {
+          await notificationService.createNotification(
+            admin.id,
+            NotificationType.SHIPMENT_DELIVERED,
+            "Shipment Delivered",
+            `Shipment has been delivered successfully.`,
+            shipmentId,
+            { shipmentId, driverId: shipment.driverId }
+          );
+        }
+      }
 
       // Publish event
       const eventType = this.getEventTypeForStatus(updateDto.status);
@@ -481,6 +523,58 @@ export class ShipmentService {
 
       await queryRunner.commitTransaction();
 
+      // Notify admins and driver (if assigned) when customer cancels
+      try {
+        const notificationService = new NotificationService();
+        const userRepository = AppDataSource.getRepository(User);
+
+        // Notify admins
+        const adminUsers = await userRepository.find({
+          where: { tenantId, role: UserRole.OPS_ADMIN, isActive: true },
+        });
+
+        for (const admin of adminUsers) {
+          try {
+            await notificationService.createNotification(
+              admin.id,
+              NotificationType.SHIPMENT_CANCELLED,
+              "Shipment Cancelled",
+              `Customer has cancelled the shipment.`,
+              shipmentId,
+              { shipmentId, cancelledBy: "customer", previousDriverId: shipment.driverId }
+            );
+          } catch (error) {
+            // Continue with other admins if one fails
+          }
+        }
+
+        // Notify driver if assigned
+        if (shipment.driverId) {
+          const driverRepository = AppDataSource.getRepository(Driver);
+          const driver = await driverRepository.findOne({
+            where: { id: shipment.driverId, tenantId },
+            relations: ["user"],
+          });
+
+          if (driver?.userId) {
+            try {
+              await notificationService.createNotification(
+                driver.userId,
+                NotificationType.SHIPMENT_CANCELLED,
+                "Shipment Cancelled",
+                `The customer has cancelled the shipment you were assigned to.`,
+                shipmentId,
+                { shipmentId, cancelledBy: "customer" }
+              );
+            } catch (error) {
+              // Don't fail if driver notification fails
+            }
+          }
+        }
+      } catch (error) {
+        // Don't fail the cancellation if notification creation fails
+      }
+
       // Publish event
       await this.eventPublisher.publishEvent(
         tenantId,
@@ -574,6 +668,33 @@ export class ShipmentService {
       await queryRunner.manager.save(history);
 
       await queryRunner.commitTransaction();
+
+      // Notify admins when driver cancels
+      try {
+        const notificationService = new NotificationService();
+        const userRepository = AppDataSource.getRepository(User);
+
+        const adminUsers = await userRepository.find({
+          where: { tenantId, role: UserRole.OPS_ADMIN, isActive: true },
+        });
+
+        for (const admin of adminUsers) {
+          try {
+            await notificationService.createNotification(
+              admin.id,
+              NotificationType.SHIPMENT_CANCELLED,
+              "Shipment Cancelled",
+              `Driver has cancelled the shipment assignment.`,
+              shipmentId,
+              { shipmentId, cancelledBy: "driver", driverId }
+            );
+          } catch (error) {
+            // Continue with other admins if one fails
+          }
+        }
+      } catch (error) {
+        // Don't fail the cancellation if notification creation fails
+      }
 
       // Publish event
       await this.eventPublisher.publishEvent(
@@ -671,22 +792,30 @@ export class ShipmentService {
 
       // Notify admins (not the driver - they just did the action)
       // Driver doesn't need a notification for their own approval
-      const notificationService = new NotificationService();
-      const userRepository = AppDataSource.getRepository(User);
-      const adminUsers = await userRepository.find({
-        where: { tenantId, role: UserRole.OPS_ADMIN, isActive: true },
-      });
+      try {
+        const notificationService = new NotificationService();
+        const userRepository = AppDataSource.getRepository(User);
+        const adminUsers = await userRepository.find({
+          where: { tenantId, role: UserRole.OPS_ADMIN, isActive: true },
+        });
 
-      // Send notification to all admins in the tenant
-      for (const admin of adminUsers) {
-        await notificationService.createNotification(
-          admin.id,
-          NotificationType.SHIPMENT_APPROVED,
-          "Shipment Approved",
-          `Driver has approved the shipment assignment.`,
-          shipmentId,
-          { shipmentId, driverId }
-        );
+        // Send notification to all admins in the tenant
+        for (const admin of adminUsers) {
+          try {
+            await notificationService.createNotification(
+              admin.id,
+              NotificationType.SHIPMENT_APPROVED,
+              "Shipment Approved",
+              `Driver has approved the shipment assignment.`,
+              shipmentId,
+              { shipmentId, driverId }
+            );
+          } catch (error) {
+            // Continue with other admins if one fails
+          }
+        }
+      } catch (error) {
+        // Don't fail the approval if notification creation fails
       }
 
       // Publish event
@@ -810,22 +939,30 @@ export class ShipmentService {
       await queryRunner.commitTransaction();
 
       // Notify admins
-      const notificationService = new NotificationService();
-      const userRepository = AppDataSource.getRepository(User);
-      const adminUsers = await userRepository.find({
-        where: { tenantId, role: UserRole.OPS_ADMIN, isActive: true },
-      });
+      try {
+        const notificationService = new NotificationService();
+        const userRepository = AppDataSource.getRepository(User);
+        const adminUsers = await userRepository.find({
+          where: { tenantId, role: UserRole.OPS_ADMIN, isActive: true },
+        });
 
-      // Send notification to all admins in the tenant
-      for (const admin of adminUsers) {
-        await notificationService.createNotification(
-          admin.id,
-          NotificationType.SHIPMENT_REJECTED,
-          "Shipment Rejected",
-          `Driver has rejected the shipment assignment.`,
-          shipmentId,
-          { shipmentId, driverId }
-        );
+        // Send notification to all admins in the tenant
+        for (const admin of adminUsers) {
+          try {
+            await notificationService.createNotification(
+              admin.id,
+              NotificationType.SHIPMENT_REJECTED,
+              "Shipment Rejected",
+              `Driver has rejected the shipment assignment.`,
+              shipmentId,
+              { shipmentId, driverId }
+            );
+          } catch (error) {
+            // Continue with other admins if one fails
+          }
+        }
+      } catch (error) {
+        // Don't fail the rejection if notification creation fails
       }
 
       // Publish event

@@ -100,6 +100,9 @@ export class AuthService {
 
   private completeLogin(user: User, jwt: any): LoginResponseDto {
     // Generate JWT token
+    // Note: Driver online status is tracked via Socket.IO room membership
+    // When driver connects to Socket.IO, they automatically join driver:online:{tenantId}:{driverId} room
+    // When they disconnect, they're automatically removed from the room
     const token = jwt.sign({
       userId: user.id,
       tenantId: user.tenantId,

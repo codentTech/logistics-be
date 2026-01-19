@@ -5,6 +5,7 @@ import { Shipment, ShipmentStatus } from '../../../infra/db/entities/Shipment';
 import { Driver } from '../../../infra/db/entities/Driver';
 import { UserRole } from '../../../infra/db/entities/User';
 import Redis from 'ioredis';
+import { Server as SocketIOServer } from 'socket.io';
 
 export class DashboardRepository {
   private dashboardRepository: Repository<DashboardSummary>;
@@ -21,7 +22,8 @@ export class DashboardRepository {
     tenantId: string,
     redis: Redis,
     userRole?: UserRole,
-    driverId?: string
+    driverId?: string,
+    io?: SocketIOServer
   ): Promise<DashboardSummary> {
     // For drivers, calculate real-time summary filtered by driverId
     // For admin/customer, use cached summary
@@ -41,7 +43,7 @@ export class DashboardRepository {
     // Refresh if not found or stale (older than 2 seconds to match frontend polling)
     // Frontend polls every 3 seconds, so 2 seconds ensures fresh data on each request
     if (!summary || (now.getTime() - summary.lastUpdated.getTime() > 2000)) {
-      summary = await this.refreshSummary(tenantId, redis);
+      summary = await this.refreshSummary(tenantId, redis, io);
     }
 
     return summary;
@@ -87,7 +89,7 @@ export class DashboardRepository {
     return summary;
   }
 
-  async refreshSummary(tenantId: string, redis: Redis): Promise<DashboardSummary> {
+  async refreshSummary(tenantId: string, redis: Redis, io?: SocketIOServer): Promise<DashboardSummary> {
     const now = new Date();
     const todayStart = new Date(now);
     todayStart.setHours(0, 0, 0, 0);
@@ -112,50 +114,26 @@ export class DashboardRepository {
       }),
     ]);
 
-    // Count drivers with recent location updates OR active shipments (online)
-    // Get all active shipments (APPROVED or IN_TRANSIT) to check driver activity
-    const activeShipmentsList = await this.shipmentRepository.find({
-      where: [
-        { tenantId, status: ShipmentStatus.APPROVED },
-        { tenantId, status: ShipmentStatus.IN_TRANSIT },
-      ],
-      select: ['driverId'],
-    });
-    
-    const driversWithActiveShipments = new Set(
-      activeShipmentsList
-        .map((s) => s.driverId)
-        .filter((id): id is string => id !== null)
-    );
-
+    // Count drivers who are online (connected via Socket.IO)
+    // Driver is considered online if they are in the driver:online:{tenantId}:{driverId} Socket.IO room
     let driversOnline = 0;
-    for (const driver of drivers) {
-      let isOnline = false;
-      
-      // Check if driver has active shipment (APPROVED or IN_TRANSIT)
-      // Drivers with active shipments are considered online even without recent location updates
-      if (driversWithActiveShipments.has(driver.id)) {
-        isOnline = true;
-      } else {
-        // Otherwise, check for recent location updates (within last 5 minutes)
-        const locationKey = `driver:${tenantId}:${driver.id}:location`;
-        try {
-          const location = await redis.get(locationKey);
-          if (location) {
-            const locationData = JSON.parse(location);
-            const locationTime = new Date(locationData.timestamp);
-            // Consider online if location updated in last 5 minutes
-            if (now.getTime() - locationTime.getTime() < 5 * 60 * 1000) {
-              isOnline = true;
+    
+    if (io && io.sockets && io.sockets.adapter) {
+      try {
+        const rooms = io.sockets.adapter.rooms;
+        
+        for (const driver of drivers) {
+          const onlineRoom = `driver:online:${tenantId}:${driver.id}`;
+          
+          if (rooms && rooms.has(onlineRoom)) {
+            const room = rooms.get(onlineRoom);
+            if (room && room.size > 0) {
+              driversOnline++;
             }
           }
-        } catch (error) {
-          // Ignore Redis errors
         }
-      }
-      
-      if (isOnline) {
-        driversOnline++;
+      } catch (error) {
+        driversOnline = 0;
       }
     }
 

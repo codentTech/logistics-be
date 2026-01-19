@@ -14,6 +14,15 @@ export const getNotificationsHandler = (fastify: FastifyInstance) =>
     ) => {
       const notificationService = new NotificationService();
       const user = (request as any).user;
+      
+      if (!user || !user.userId) {
+        return reply.status(401).send({
+          success: false,
+          error_code: 'UNAUTHORIZED',
+          message: 'User not authenticated',
+        });
+      }
+
       const limit = request.query.limit ? parseInt(request.query.limit, 10) : 50;
       const offset = request.query.offset ? parseInt(request.query.offset, 10) : 0;
 

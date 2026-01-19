@@ -26,6 +26,11 @@ export class NotificationService {
     shipmentId: string | null = null,
     metadata: Record<string, any> | null = null
   ): Promise<Notification> {
+    // Validate required fields
+    if (!userId || !type || !title || !message) {
+      throw new Error(`Invalid notification data: userId=${userId}, type=${type}, title=${title}, message=${message}`);
+    }
+
     const notification = this.notificationRepository.create({
       userId,
       type,
@@ -36,7 +41,12 @@ export class NotificationService {
       metadata,
     });
 
-    return await this.notificationRepository.save(notification);
+    try {
+      const savedNotification = await this.notificationRepository.save(notification);
+      return savedNotification;
+    } catch (error) {
+      throw new Error(`Failed to save notification: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /**
@@ -46,7 +56,11 @@ export class NotificationService {
     userId: string,
     limit: number = 50,
     offset: number = 0
-  ): Promise<{ notifications: Notification[]; total: number }> {
+  ): Promise<{ notifications: any[]; total: number }> {
+    if (!userId) {
+      throw new Error('userId is required to fetch notifications');
+    }
+
     const [notifications, total] = await this.notificationRepository.findAndCount({
       where: { userId },
       relations: ['shipment'],
@@ -55,7 +69,25 @@ export class NotificationService {
       skip: offset,
     });
 
-    return { notifications, total };
+    // Serialize notifications to plain objects to ensure all fields are included
+    const serializedNotifications = notifications.map((notification) => ({
+      id: String(notification.id),
+      userId: String(notification.userId),
+      shipmentId: notification.shipmentId ? String(notification.shipmentId) : null,
+      type: String(notification.type),
+      title: String(notification.title),
+      message: String(notification.message),
+      status: String(notification.status),
+      metadata: notification.metadata || null,
+      createdAt: notification.createdAt instanceof Date 
+        ? notification.createdAt.toISOString() 
+        : notification.createdAt,
+      updatedAt: notification.updatedAt instanceof Date 
+        ? notification.updatedAt.toISOString() 
+        : notification.updatedAt,
+    }));
+
+    return { notifications: serializedNotifications, total };
   }
 
   /**

@@ -36,7 +36,8 @@ export const getDashboardSummaryHandler = (fastify: FastifyInstance) =>
       tenantId,
       fastify.redis,
       user.role as UserRole,
-      driverId
+      driverId,
+      fastify.io
     );
     return sendSuccess(reply, summary);
   });
