@@ -31,6 +31,8 @@ export class NotificationService {
       throw new Error(`Invalid notification data: userId=${userId}, type=${type}, title=${title}, message=${message}`);
     }
 
+    // Explicitly set createdAt to current UTC time to avoid timezone issues
+    const now = new Date();
     const notification = this.notificationRepository.create({
       userId,
       type,
@@ -39,6 +41,8 @@ export class NotificationService {
       shipmentId,
       status: NotificationStatus.UNREAD,
       metadata,
+      createdAt: now,
+      updatedAt: now,
     });
 
     try {
@@ -70,22 +74,38 @@ export class NotificationService {
     });
 
     // Serialize notifications to plain objects to ensure all fields are included
-    const serializedNotifications = notifications.map((notification) => ({
-      id: String(notification.id),
-      userId: String(notification.userId),
-      shipmentId: notification.shipmentId ? String(notification.shipmentId) : null,
-      type: String(notification.type),
-      title: String(notification.title),
-      message: String(notification.message),
-      status: String(notification.status),
-      metadata: notification.metadata || null,
-      createdAt: notification.createdAt instanceof Date 
-        ? notification.createdAt.toISOString() 
-        : notification.createdAt,
-      updatedAt: notification.updatedAt instanceof Date 
-        ? notification.updatedAt.toISOString() 
-        : notification.updatedAt,
-    }));
+    const serializedNotifications = notifications.map((notification) => {
+      // Helper function to convert any date format to ISO string
+      const toISOString = (dateValue: any): string => {
+        if (!dateValue) {
+          return new Date().toISOString();
+        }
+        if (dateValue instanceof Date) {
+          return dateValue.toISOString();
+        }
+        if (typeof dateValue === 'string') {
+          const parsed = new Date(dateValue);
+          if (!isNaN(parsed.getTime())) {
+            return parsed.toISOString();
+          }
+        }
+        // Fallback to current time if invalid
+        return new Date().toISOString();
+      };
+
+      return {
+        id: String(notification.id),
+        userId: String(notification.userId),
+        shipmentId: notification.shipmentId ? String(notification.shipmentId) : null,
+        type: String(notification.type),
+        title: String(notification.title),
+        message: String(notification.message),
+        status: String(notification.status),
+        metadata: notification.metadata || null,
+        createdAt: toISOString(notification.createdAt),
+        updatedAt: toISOString(notification.updatedAt),
+      };
+    });
 
     return { notifications: serializedNotifications, total };
   }

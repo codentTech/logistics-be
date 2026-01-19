@@ -33,6 +33,8 @@ export const AppDataSource = new DataSource({
     max: 10, // Maximum number of connections in pool
     min: 2, // Minimum number of connections in pool
     idleTimeoutMillis: 30000,
+    // Set timezone to UTC for all connections
+    connectionInitSql: "SET timezone = 'UTC'",
   },
 });
 
